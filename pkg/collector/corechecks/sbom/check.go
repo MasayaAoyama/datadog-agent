@@ -137,14 +137,18 @@ func (c *Check) Run() error {
 		),
 	)
 
+	// Trigger an initial scan on host
+	c.processor.processHostRefresh()
+
 	imgRefreshTicker := time.NewTicker(time.Duration(c.instance.PeriodicRefreshSeconds) * time.Second)
 
 	for {
 		select {
 		case eventBundle := <-imgEventsCh:
-			c.processor.processEvents(eventBundle)
+			c.processor.processContainerImagesEvents(eventBundle)
 		case <-imgRefreshTicker.C:
-			c.processor.processRefresh(c.workloadmetaStore.ListImages())
+			c.processor.processContainerImagesRefresh(c.workloadmetaStore.ListImages())
+			c.processor.processHostRefresh()
 		case <-c.stopCh:
 			c.processor.stop()
 			return nil

@@ -413,7 +413,7 @@ func TestProcessEvents(t *testing.T) {
 				}
 			}
 
-			p.processEvents(workloadmeta.EventBundle{
+			p.processContainerImagesEvents(workloadmeta.EventBundle{
 				Events: test.inputEvents,
 				Ch:     make(chan struct{}),
 			})
