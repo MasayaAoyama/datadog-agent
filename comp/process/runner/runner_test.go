@@ -49,6 +49,11 @@ func TestRunnerRealtime(t *testing.T) {
 		mockConfig.Set("process_config.disable_realtime_checks", false)
 
 		fxutil.Test(t, fx.Options(
+			fx.Supply(
+				&checks.HostInfo{},
+				&sysconfig.Config{},
+			),
+
 			fx.Provide(
 				// Cast `chan types.RTResponse` to `<-chan types.RTResponse`.
 				// We can't use `fx.As` because `<-chan types.RTResponse` is not an interface.
