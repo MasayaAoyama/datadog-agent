@@ -9,9 +9,17 @@
 package probe
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
-type FieldHandlers struct {
-	resolvers *resolvers.Resolvers
+// Opts defines some probe options
+type Opts struct {
+	// StatsdClient to be used for probe stats
+	StatsdClient statsd.ClientInterface
+}
+
+func (o *Opts) normalize() {
+	if o.StatsdClient == nil {
+		o.StatsdClient = &statsd.NoOpClient{}
+	}
 }

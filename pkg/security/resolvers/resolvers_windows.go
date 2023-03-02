@@ -6,12 +6,8 @@
 //go:build windows
 // +build windows
 
-package probe
+package resolvers
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
-)
-
-type FieldHandlers struct {
-	resolvers *resolvers.Resolvers
+// Resolvers holds the list of the event attribute resolvers
+type Resolvers struct {
 }

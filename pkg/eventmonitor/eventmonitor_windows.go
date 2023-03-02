@@ -6,12 +6,18 @@
 //go:build windows
 // +build windows
 
-package probe
+package eventmonitor
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
+	"net"
 )
 
-type FieldHandlers struct {
-	resolvers *resolvers.Resolvers
+func (m *EventMonitor) getListener() (net.Listener, error) {
+	return net.Listen("tcp", ":3335")
 }
+
+func (m *EventMonitor) init() error {
+	return nil
+}
+
+func (m *EventMonitor) cleanup() {}
