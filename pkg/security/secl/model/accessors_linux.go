@@ -1,3 +1,6 @@
+//go:build linux
+// +build linux
+
 // Code generated - DO NOT EDIT.
 package model
 

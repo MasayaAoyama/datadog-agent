@@ -1,11 +1,13 @@
-{{- range .BuildTags }}// {{.}}{{end}}
+{{- range .BuildTags }}
+// {{.}}
+{{end}}
 
 // Code generated - DO NOT EDIT.
 
 package {{.Name}}
 
 import (
-	"net"
+    {{if ne $.Platform "windows"}}"net"{{end}}
 	"reflect"
 
 	{{if ne $.SourcePkg $.TargetPkg}}"{{.SourcePkg}}"{{end}}
