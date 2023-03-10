@@ -8,18 +8,27 @@
 
 package config
 
+import "testing"
+
 // Setting a default list of features with what is widely used in unit tests.
 func init() {
-	detectedFeatures = FeatureMap{Docker: struct{}{}}
+	detectedFeatures = FeatureMap{}
 }
 
-func SetFeature(feature Feature) {
+// SetFeatures automatically remove feature flags through t.Cleanup
+func SetFeatures(t *testing.T, features ...Feature) {
 	featureLock.Lock()
 	defer featureLock.Unlock()
 
-	detectedFeatures[feature] = struct{}{}
+	detectedFeatures = make(FeatureMap)
+	for _, feature := range features {
+		detectedFeatures[feature] = struct{}{}
+	}
+
+	t.Cleanup(ClearFeatures)
 }
 
+// ClearFeatures remove all set features
 func ClearFeatures() {
 	featureLock.Lock()
 	defer featureLock.Unlock()

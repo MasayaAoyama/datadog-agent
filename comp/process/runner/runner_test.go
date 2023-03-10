@@ -116,8 +116,7 @@ func TestRunnerRealtime(t *testing.T) {
 }
 
 func TestProvidedChecks(t *testing.T) {
-	config.SetDetectedFeatures(config.FeatureMap{config.Docker: {}})
-	t.Cleanup(func() { config.SetDetectedFeatures(nil) })
+	config.SetFeatures(t, config.Docker)
 
 	r := fxutil.Test[Component](t, fx.Options(
 		fx.Supply(
