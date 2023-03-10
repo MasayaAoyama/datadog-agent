@@ -29,7 +29,7 @@ func TestPodCheck(t *testing.T) {
 		cfg.Set("orchestrator_explorer.enabled", true)
 		cfg.Set("cluster_name", "test")
 
-		enabledChecks := getEnabledChecks(&sysconfig.Config{})
+		enabledChecks := getEnabledChecks(cfg, &sysconfig.Config{})
 		assertContainsCheck(t, enabledChecks, PodCheckName)
 	})
 
@@ -40,7 +40,7 @@ func TestPodCheck(t *testing.T) {
 		cfg := config.Mock(t)
 		cfg.Set("orchestrator_explorer.enabled", false)
 
-		enabledChecks := getEnabledChecks(&sysconfig.Config{})
+		enabledChecks := getEnabledChecks(cfg, &sysconfig.Config{})
 		assertNotContainsCheck(t, enabledChecks, PodCheckName)
 	})
 }
