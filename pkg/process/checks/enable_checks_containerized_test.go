@@ -30,7 +30,7 @@ func TestContainerCheck(t *testing.T) {
 		cfg.Set("process_config.disable_realtime_checks", false)
 		setFeatures(t, config.Docker)
 
-		enabledChecks := getEnabledChecks(ddconfig.Datadog, scfg)
+		enabledChecks := getEnabledChecks(cfg, scfg)
 		assertContainsCheck(t, enabledChecks, ContainerCheckName)
 		assertContainsCheck(t, enabledChecks, RTContainerCheckName)
 		assertNotContainsCheck(t, enabledChecks, ProcessCheckName)
@@ -44,7 +44,7 @@ func TestContainerCheck(t *testing.T) {
 		cfg.Set("process_config.disable_realtime_checks", true)
 		setFeatures(t, config.Docker)
 
-		enabledChecks := getEnabledChecks(ddconfig.Datadog, scfg)
+		enabledChecks := getEnabledChecks(cfg, scfg)
 		assertContainsCheck(t, enabledChecks, ContainerCheckName)
 		assertNotContainsCheck(t, enabledChecks, RTContainerCheckName)
 	})
@@ -56,7 +56,7 @@ func TestContainerCheck(t *testing.T) {
 		cfg.Set("process_config.container_collection.enabled", true)
 		setFeatures(t)
 
-		enabledChecks := getEnabledChecks(ddconfig.Datadog, scfg)
+		enabledChecks := getEnabledChecks(cfg, scfg)
 
 		assertNotContainsCheck(t, enabledChecks, ContainerCheckName)
 		assertNotContainsCheck(t, enabledChecks, RTContainerCheckName)
@@ -69,7 +69,7 @@ func TestContainerCheck(t *testing.T) {
 		cfg.Set("process_config.container_collection.enabled", true)
 		setFeatures(t, config.Docker)
 
-		enabledChecks := getEnabledChecks(ddconfig.Datadog, scfg)
+		enabledChecks := getEnabledChecks(cfg, scfg)
 		assertContainsCheck(t, enabledChecks, ProcessCheckName)
 		assertNotContainsCheck(t, enabledChecks, ContainerCheckName)
 		assertNotContainsCheck(t, enabledChecks, RTContainerCheckName)
@@ -103,7 +103,7 @@ func TestDisableRealTime(t *testing.T) {
 			mockConfig.Set("process_config.process_discovery.enabled", false) // Not an RT check so we don't care
 			setFeatures(t, config.Docker)
 
-			enabledChecks := getEnabledChecks(ddconfig.Datadog, &sysconfig.Config{})
+			enabledChecks := getEnabledChecks(cfg, &sysconfig.Config{})
 			assert.EqualValues(tc.expectedChecks, enabledChecks)
 		})
 	}

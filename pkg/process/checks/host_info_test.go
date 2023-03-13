@@ -27,8 +27,10 @@ func TestGetHostname(t *testing.T) {
 	config.SetDetectedFeatures(config.FeatureMap{})
 	defer config.SetDetectedFeatures(nil)
 
+	cfg := config.Mock(t)
+
 	ctx := context.Background()
-	h, err := getHostname(ctx, config.Datadog.GetString("process_config.dd_agent_bin"), 0)
+	h, err := getHostname(ctx, cfg.GetString("process_config.dd_agent_bin"), 0)
 	assert.Nil(t, err)
 	// verify we fall back to getting os hostname
 	expectedHostname, _ := os.Hostname()
@@ -86,13 +88,15 @@ func TestInvalidHostname(t *testing.T) {
 	config.SetDetectedFeatures(config.FeatureMap{})
 	defer config.SetDetectedFeatures(nil)
 
+	cfg := config.Mock(t)
+
 	// Lower the GRPC timeout, otherwise the test will time out in CI
-	config.Datadog.Set("process_config.grpc_connection_timeout_secs", 1)
-	config.Datadog.Set("hostname", "localhost")
+	cfg.Set("process_config.grpc_connection_timeout_secs", 1)
+	cfg.Set("hostname", "localhost")
 
 	expectedHostname, _ := os.Hostname()
 
-	hostName, err := resolveHostName()
+	hostName, err := resolveHostName(cfg)
 	assert.NoError(t, err)
 
 	assert.Equal(t, expectedHostname, hostName)

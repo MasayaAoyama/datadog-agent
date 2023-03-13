@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/events"
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
@@ -162,7 +163,7 @@ func runEventStore(cliParams *cliParams) error {
 		return err
 	}
 
-	store, err := events.NewRingStore(&statsd.NoOpClient{})
+	store, err := events.NewRingStore(ddconfig.Datadog, &statsd.NoOpClient{})
 	if err != nil {
 		return err
 	}
