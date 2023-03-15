@@ -16,6 +16,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 
 	"github.com/stretchr/testify/assert"
@@ -129,6 +130,8 @@ func setAgentVersionForTest(newVersion string) func() {
 }
 
 func TestInfo(t *testing.T) {
+	cfg := config.Mock(t)
+
 	reset := setAgentVersionForTest("0.99.0")
 	defer reset()
 
@@ -140,7 +143,7 @@ func TestInfo(t *testing.T) {
 	err := InitInfo("ubuntu-1404.vagrantup.com", true, mkTestEps(t))
 	assert.NoError(err)
 	var buf bytes.Buffer
-	err = Info(nil, &buf, server.URL+expVarPath)
+	err = Info(cfg, &buf, server.URL+expVarPath)
 	assert.NoError(err)
 	info := buf.String()
 	assert.Equal(expectedInfo, info)
@@ -148,7 +151,7 @@ func TestInfo(t *testing.T) {
 	// check that if system probe process module config flag is disabled,
 	// it is displayed correctly in info command output
 	buf.Reset() // empty the buffer before reusing
-	err = Info(nil, &buf, server.URL+sysProbeProcessModuleEnabledExpVarPath)
+	err = Info(cfg, &buf, server.URL+sysProbeProcessModuleEnabledExpVarPath)
 	assert.NoError(err)
 	info = buf.String()
 	sysProbeProcessModuleEnabledExpectedInfo := strings.ReplaceAll(expectedInfo,
@@ -186,6 +189,8 @@ func TestNotRunning(t *testing.T) {
 }
 
 func TestError(t *testing.T) {
+	cfg := config.Mock(t)
+
 	reset := setAgentVersionForTest("0.99.0")
 	defer reset()
 
@@ -198,7 +203,7 @@ func TestError(t *testing.T) {
 	assert.NoError(err)
 	var buf bytes.Buffer
 	// same port but a 404 response
-	err = Info(nil, &buf, server.URL+"/haha")
+	err = Info(cfg, &buf, server.URL+"/haha")
 	assert.Error(err)
 	info := buf.String()
 
