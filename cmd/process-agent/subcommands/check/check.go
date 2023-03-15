@@ -134,7 +134,7 @@ func runCheckCmd(cliParams *cliParams) error {
 	}
 	defer tagger.Stop() //nolint:errcheck
 
-	hostInfo, err := checks.CollectHostInfo()
+	hostInfo, err := checks.CollectHostInfo(ddconfig.Datadog)
 	if err != nil {
 		log.Errorf("failed to collect system info: %s", err)
 	}

@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"expvar"
 	"fmt"
-	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"html/template"
 	"io"
 	"net/http"
@@ -18,6 +17,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 
 	"go.uber.org/atomic"
 
@@ -365,7 +366,7 @@ func InitInfo(hostname string, processModuleEnabled bool, eps []apicfg.Endpoint)
 }
 
 // Info is called when --info flag is enabled when executing the agent binary
-func Info(w io.Writer, expvarURL string) error {
+func Info(cfg ddconfig.ConfigReader, w io.Writer, expvarURL string) error {
 	agentVersion, _ := version.Agent()
 	var err error
 	client := http.Client{Timeout: 2 * time.Second}
@@ -384,7 +385,7 @@ func Info(w io.Writer, expvarURL string) error {
 	defer func() { _ = resp.Body.Close() }()
 
 	var info StatusInfo
-	info.LogFile = ddconfig.Datadog.GetString("process_config.log_file")
+	info.LogFile = cfg.GetString("process_config.log_file")
 	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
 		// Since the request failed, we can't get the version of the remote agent.
 		clientVersion, _ := version.Agent()

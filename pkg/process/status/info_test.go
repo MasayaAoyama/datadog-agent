@@ -7,14 +7,16 @@ package status
 
 import (
 	"bytes"
-	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
-	"github.com/stretchr/testify/require"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 
 	"github.com/stretchr/testify/assert"
 
@@ -138,7 +140,7 @@ func TestInfo(t *testing.T) {
 	err := InitInfo("ubuntu-1404.vagrantup.com", true, mkTestEps(t))
 	assert.NoError(err)
 	var buf bytes.Buffer
-	err = Info(&buf, server.URL+expVarPath)
+	err = Info(nil, &buf, server.URL+expVarPath)
 	assert.NoError(err)
 	info := buf.String()
 	assert.Equal(expectedInfo, info)
@@ -146,7 +148,7 @@ func TestInfo(t *testing.T) {
 	// check that if system probe process module config flag is disabled,
 	// it is displayed correctly in info command output
 	buf.Reset() // empty the buffer before reusing
-	err = Info(&buf, server.URL+sysProbeProcessModuleEnabledExpVarPath)
+	err = Info(nil, &buf, server.URL+sysProbeProcessModuleEnabledExpVarPath)
 	assert.NoError(err)
 	info = buf.String()
 	sysProbeProcessModuleEnabledExpectedInfo := strings.ReplaceAll(expectedInfo,
@@ -177,7 +179,7 @@ func TestNotRunning(t *testing.T) {
 	assert.NoError(err)
 	newURL := "http://" + hostPort[0] + ":" + strconv.Itoa(port+1)
 
-	err = Info(&buf, newURL)
+	err = Info(nil, &buf, newURL)
 	assert.Error(err)
 	info := buf.String()
 	assert.Equal(notRunningInfo, info)
@@ -196,7 +198,7 @@ func TestError(t *testing.T) {
 	assert.NoError(err)
 	var buf bytes.Buffer
 	// same port but a 404 response
-	err = Info(&buf, server.URL+"/haha")
+	err = Info(nil, &buf, server.URL+"/haha")
 	assert.Error(err)
 	info := buf.String()
 

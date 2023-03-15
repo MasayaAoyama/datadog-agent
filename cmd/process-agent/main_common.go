@@ -141,7 +141,7 @@ func runApp(exit chan struct{}, globalParams *command.GlobalParams) int {
 	if globalParams.Info {
 		// using the debug port to get info to work
 		url := fmt.Sprintf("http://localhost:%d/debug/vars", getExpvarPort(appInitDeps.Config))
-		if err := status.Info(os.Stdout, url); err != nil {
+		if err := status.Info(appInitDeps.Config, os.Stdout, url); err != nil {
 			_ = log.Criticalf("Failed to render info:", err.Error())
 			return 1
 		}
@@ -275,7 +275,7 @@ func initMisc(deps miscDeps) error {
 	expvarServer := &http.Server{Addr: fmt.Sprintf("localhost:%d", expvarPort), Handler: http.DefaultServeMux}
 
 	// Initialize status
-	err := initStatus(deps.HostInfo.Object(), deps.Syscfg)
+	err := initStatus(deps.Config, deps.HostInfo.Object(), deps.Syscfg)
 	if err != nil {
 		log.Critical("Failed to initialize status:", err)
 	}
@@ -325,7 +325,7 @@ func initMisc(deps miscDeps) error {
 	return nil
 }
 
-func initStatus(hostInfo *checks.HostInfo, syscfg sysprobeconfig.Component) error {
+func initStatus(config ddconfig.ConfigReader, hostInfo *checks.HostInfo, syscfg sysprobeconfig.Component) error {
 	// update docker socket path in info
 	dockerSock, err := util.GetDockerSocketPath()
 	if err != nil {
@@ -335,7 +335,7 @@ func initStatus(hostInfo *checks.HostInfo, syscfg sysprobeconfig.Component) erro
 
 	// If the sysprobe module is enabled, the process check can call out to the sysprobe for privileged stats
 	_, processModuleEnabled := syscfg.Object().EnabledModules[sysconfig.ProcessModule]
-	eps, err := runner.GetAPIEndpoints()
+	eps, err := runner.GetAPIEndpoints(config)
 	if err != nil {
 		log.Criticalf("Failed to initialize Api Endpoints: %s", err.Error())
 	}
