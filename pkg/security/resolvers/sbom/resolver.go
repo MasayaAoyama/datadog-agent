@@ -20,6 +20,7 @@ import (
 	"k8s.io/utils/temp"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	sbompkg "github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
@@ -93,7 +94,7 @@ type Resolver struct {
 	sbomsCache     *simplelru.LRU[string, *SBOM]
 	scannerChan    chan *SBOM
 	statsdClient   statsd.ClientInterface
-	trivyScanner   trivy.Collector
+	trivyScanner   sbompkg.Collector
 
 	sbomGenerations       *atomic.Uint64
 	failedSBOMGenerations *atomic.Uint64
@@ -112,9 +113,7 @@ func NewSBOMResolver(c *config.Config, statsdClient statsd.ClientInterface) (*Re
 	if err != nil {
 		return nil, err
 	}
-	trivyConfiguration := trivy.DefaultCollectorConfig([]string{trivy.OSAnalyzers}, tmpDir.Name)
-	trivyConfiguration.ClearCacheOnClose = true
-	trivyConfiguration.ArtifactOption.Slow = false
+	trivyConfiguration := trivy.DefaultCollectorConfig(tmpDir.Name)
 
 	trivyScanner, err := trivy.NewCollector(trivyConfiguration)
 	if err != nil {
@@ -195,7 +194,7 @@ func (r *Resolver) generateSBOM(root string, sbom *SBOM) error {
 	seclog.Infof("Generating SBOM for %s", root)
 	r.sbomGenerations.Inc()
 
-	report, err := r.trivyScanner.ScanFilesystem(context.Background(), root)
+	report, err := r.trivyScanner.ScanFilesystem(context.Background(), root, sbompkg.ScanOptions{Analyzers: []string{trivy.OSAnalyzers}})
 	if err != nil {
 		r.failedSBOMGenerations.Inc()
 		return fmt.Errorf("failed to generate SBOM for %s: %w", root, err)

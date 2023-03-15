@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+//go:build trivy
+// +build trivy
+
 package sbom
 
 import (
@@ -114,7 +117,10 @@ func (c *Check) Configure(integrationConfigDigest uint64, config, initConfig int
 		return err
 	}
 
-	c.processor = newProcessor(c.workloadmetaStore, sender, c.instance.ChunkSize, time.Duration(c.instance.NewSBOMMaxLatencySeconds)*time.Second)
+	c.processor, err = newProcessor(c.workloadmetaStore, sender, c.instance.ChunkSize, time.Duration(c.instance.NewSBOMMaxLatencySeconds)*time.Second)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -140,13 +146,14 @@ func (c *Check) Run() error {
 	// Trigger an initial scan on host
 	c.processor.processHostRefresh()
 
-	imgRefreshTicker := time.NewTicker(time.Duration(c.instance.PeriodicRefreshSeconds) * time.Second)
+	periodicRefreshTicker := time.NewTicker(time.Duration(c.instance.PeriodicRefreshSeconds) * time.Second)
+	defer periodicRefreshTicker.Stop()
 
 	for {
 		select {
 		case eventBundle := <-imgEventsCh:
 			c.processor.processContainerImagesEvents(eventBundle)
-		case <-imgRefreshTicker.C:
+		case <-periodicRefreshTicker.C:
 			c.processor.processContainerImagesRefresh(c.workloadmetaStore.ListImages())
 			c.processor.processHostRefresh()
 		case <-c.stopCh:

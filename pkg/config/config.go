@@ -1088,6 +1088,11 @@ func InitConfig(config Config) {
 
 	// SBOM configuration
 	bindEnvAndSetLogsConfigKeys(config, "sbom.")
+	config.BindEnvAndSetDefault("sbom.enabled", false)
+	config.BindEnvAndSetDefault("sbom.analyzers", []string{"os"})
+	config.BindEnvAndSetDefault("sbom.cache_directory", "")
+	config.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
+	config.BindEnvAndSetDefault("sbom.cache_ttl", 60*60) // Integer seconds. Only used with Badger
 
 	// Orchestrator Explorer - process agent
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
@@ -1115,9 +1120,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("container_image_collection.sbom.scan_interval", 0)    // Integer seconds
 	config.BindEnvAndSetDefault("container_image_collection.sbom.scan_timeout", 10*60) // Integer seconds
 	config.BindEnvAndSetDefault("container_image_collection.sbom.analyzers", []string{"os"})
-	config.BindEnvAndSetDefault("container_image_collection.sbom.cache_directory", "")
-	config.BindEnvAndSetDefault("container_image_collection.sbom.clear_cache_on_exit", false)
-	config.BindEnvAndSetDefault("container_image_collection.sbom.cache_ttl", 60*60) // Integer seconds. Only used with Badger
 
 	// Datadog security agent (common)
 	config.BindEnvAndSetDefault("security_agent.cmd_port", 5010)
