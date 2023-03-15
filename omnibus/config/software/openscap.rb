@@ -43,6 +43,7 @@ build do
   patch source: "0016-Fix-leak-of-dpkginfo_reply_t-fields.patch", env: env
 
   patch source: "get_results_from_session.patch", env: env
+  patch source: "session_result_free.patch", env: env
   patch source: "010_perlpm_install_fix.patch", env: env
   patch source: "dpkginfo-cacheconfig.patch", env: env
   patch source: "oval_component_evaluate_CONCAT_leak.patch", env: env
