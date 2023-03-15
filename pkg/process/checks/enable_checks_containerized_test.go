@@ -103,7 +103,7 @@ func TestDisableRealTime(t *testing.T) {
 			mockConfig.Set("process_config.process_discovery.enabled", false) // Not an RT check so we don't care
 			setFeatures(t, config.Docker)
 
-			enabledChecks := getEnabledChecks(cfg, &sysconfig.Config{})
+			enabledChecks := getEnabledChecks(mockConfig, &sysconfig.Config{})
 			assert.EqualValues(tc.expectedChecks, enabledChecks)
 		})
 	}
