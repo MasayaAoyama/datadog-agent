@@ -26,7 +26,6 @@ import (
 	"golang.org/x/time/rate"
 	"gopkg.in/yaml.v3"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -59,16 +58,6 @@ import (
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-// EventHandler represents an handler for the events sent by the probe
-type EventHandler interface {
-	HandleEvent(event *model.Event)
-}
-
-// CustomEventHandler represents an handler for the custom events sent by the probe
-type CustomEventHandler interface {
-	HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent)
-}
-
 // EventStream describes the interface implemented by reordered perf maps or ring buffers
 type EventStream interface {
 	Init(*manager.Manager, *pconfig.Config) error
@@ -78,44 +67,14 @@ type EventStream interface {
 	Resume() error
 }
 
-// NotifyDiscarderPushedCallback describe the callback used to retrieve pushed discarders information
-type NotifyDiscarderPushedCallback func(eventType string, event *model.Event, field string)
-
-var (
-	// defaultEventTypes event types used whatever the event handlers or the rules
-	defaultEventTypes = []eval.EventType{
-		model.ForkEventType.String(),
-		model.ExecEventType.String(),
-		model.ExecEventType.String(),
-	}
-)
-
-// Probe represents the runtime security eBPF probe in charge of
-// setting up the required kProbes and decoding events sent from the kernel
-type Probe struct {
+type PlatformProbe struct {
 	// Constants and configuration
-	Opts           Opts
 	Manager        *manager.Manager
 	managerOptions manager.Options
-	Config         *config.Config
-	StatsdClient   statsd.ClientInterface
-	startTime      time.Time
 	kernelVersion  *kernel.Version
-	_              uint32 // padding for goarch=386
-	ctx            context.Context
-	cancelFnc      context.CancelFunc
-	wg             sync.WaitGroup
-
-	// Events section
-	eventHandlers       [model.MaxAllEventType][]EventHandler
-	customEventHandlers [model.MaxAllEventType][]CustomEventHandler
 
 	// internals
-	monitor       *Monitor
-	resolvers     *resolvers.Resolvers
-	event         *model.Event
-	fieldHandlers *FieldHandlers
-	scrubber      *procutil.DataScrubber
+	monitor *Monitor
 
 	// Ring
 	eventStream EventStream
@@ -124,24 +83,11 @@ type Probe struct {
 	activityDumpHandler dump.ActivityDumpHandler
 
 	// Approvers / discarders section
-	Erpc                               *erpc.ERPC
-	erpcRequest                        *erpc.ERPCRequest
-	pidDiscarders                      *pidDiscarders
-	inodeDiscarders                    *inodeDiscarders
-	approvers                          map[eval.EventType]kfilters.ActiveApprovers
-	discarderRateLimiter               *rate.Limiter
-	notifyDiscarderPushedCallbacks     []NotifyDiscarderPushedCallback
-	notifyDiscarderPushedCallbacksLock sync.Mutex
-
-	constantOffsets map[string]uint64
-	runtimeCompiled bool
-
-	isRuntimeDiscarded bool
-}
-
-// GetResolvers returns the resolvers of Probe
-func (p *Probe) GetResolvers() *resolvers.Resolvers {
-	return p.resolvers
+	Erpc            *erpc.ERPC
+	erpcRequest     *erpc.ERPCRequest
+	pidDiscarders   *pidDiscarders
+	inodeDiscarders *inodeDiscarders
+	approvers       map[eval.EventType]kfilters.ActiveApprovers
 }
 
 func (p *Probe) detectKernelVersion() error {
@@ -334,28 +280,6 @@ func (p *Probe) Start() error {
 // AddActivityDumpHandler set the probe activity dump handler
 func (p *Probe) AddActivityDumpHandler(handler dump.ActivityDumpHandler) {
 	p.activityDumpHandler = handler
-}
-
-// AddEventHandler set the probe event handler
-func (p *Probe) AddEventHandler(eventType model.EventType, handler EventHandler) error {
-	if eventType >= model.MaxAllEventType {
-		return errors.New("unsupported event type")
-	}
-
-	p.eventHandlers[eventType] = append(p.eventHandlers[eventType], handler)
-
-	return nil
-}
-
-// AddCustomEventHandler set the probe event handler
-func (p *Probe) AddCustomEventHandler(eventType model.EventType, handler CustomEventHandler) error {
-	if eventType >= model.MaxAllEventType {
-		return errors.New("unsupported event type")
-	}
-
-	p.customEventHandlers[eventType] = append(p.customEventHandlers[eventType], handler)
-
-	return nil
 }
 
 // DispatchEvent sends an event to the probe event handler
@@ -1327,16 +1251,19 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	p := &Probe{
 		Opts:                 opts,
 		Config:               config,
-		approvers:            make(map[eval.EventType]kfilters.ActiveApprovers),
-		managerOptions:       ebpf.NewDefaultOptions(),
 		ctx:                  ctx,
 		cancelFnc:            cancel,
-		Erpc:                 nerpc,
-		erpcRequest:          &erpc.ERPCRequest{},
 		StatsdClient:         opts.StatsdClient,
 		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),
 		isRuntimeDiscarded:   !opts.DontDiscardRuntime,
 		event:                &model.Event{},
+
+		PlatformProbe: PlatformProbe{
+			approvers:      make(map[eval.EventType]kfilters.ActiveApprovers),
+			managerOptions: ebpf.NewDefaultOptions(),
+			Erpc:           nerpc,
+			erpcRequest:    &erpc.ERPCRequest{},
+		},
 	}
 
 	if err := p.detectKernelVersion(); err != nil {

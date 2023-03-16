@@ -10,10 +10,8 @@ package probe
 
 import (
 	"context"
-	"sync"
+	"golang.org/x/time/rate"
 	"time"
-
-	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -21,20 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/procmon"
 )
 
-// EventHandler represents an handler for the events sent by the probe
-type EventHandler interface {
-	HandleEvent(event *model.Event)
-}
-
-type Probe struct {
-	Opts         Opts
-	Config       *config.Config
-	StatsdClient statsd.ClientInterface
-	startTime    time.Time
-	ctx          context.Context
-	cancelFnc    context.CancelFunc
-	wg           sync.WaitGroup
-
+type PlatformProbe struct {
 	pm      *procmon.WinProcmon
 	onStart chan *procmon.ProcessStartNotification
 	onStop  chan *procmon.ProcessStopNotification
@@ -122,13 +107,17 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	p := &Probe{
-		Opts:         opts,
-		Config:       config,
-		ctx:          ctx,
-		cancelFnc:    cancel,
-		StatsdClient: opts.StatsdClient,
-		onStart:      make(chan *procmon.ProcessStartNotification),
-		onStop:       make(chan *procmon.ProcessStopNotification),
+		Opts:                 opts,
+		Config:               config,
+		ctx:                  ctx,
+		cancelFnc:            cancel,
+		StatsdClient:         opts.StatsdClient,
+		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),
+		event:                &model.Event{},
+		PlatformProbe: PlatformProbe{
+			onStart: make(chan *procmon.ProcessStartNotification),
+			onStop:  make(chan *procmon.ProcessStopNotification),
+		},
 	}
 	return p, nil
 }
