@@ -683,7 +683,7 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 
 		// go through the root nodes and check if one of them matches the input ProcessCacheEntry:
 		for _, root := range ad.ProcessActivityTree {
-			if root.Matches(entry, ad.Metadata.DifferentiateArgs, ad.adm.processResolver) {
+			if root.Matches(&entry.Process, ad.Metadata.DifferentiateArgs) {
 				return root
 			}
 		}
@@ -705,7 +705,7 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 		// to add the current entry no matter if it matches the selector or not. Go through the root children of the
 		// parent node and check if one of them matches the input ProcessCacheEntry.
 		for _, child := range parentNode.Children {
-			if child.Matches(entry, ad.Metadata.DifferentiateArgs, ad.adm.processResolver) {
+			if child.Matches(&entry.Process, ad.Metadata.DifferentiateArgs) {
 				return child
 			}
 		}
@@ -1165,26 +1165,38 @@ func (pan *ProcessActivityNode) debug(w io.Writer, prefix string) {
 
 // scrubAndReleaseArgsEnvs scrubs the process args and envs, and then releases them
 func (pan *ProcessActivityNode) scrubAndReleaseArgsEnvs(resolver *sprocess.Resolver) {
-	_, _ = resolver.GetProcessScrubbedArgv(&pan.Process)
-	envs, envsTruncated := resolver.GetProcessEnvs(&pan.Process)
-	pan.Process.Envs = envs
-	pan.Process.EnvsTruncated = envsTruncated
-	pan.Process.Argv0, _ = resolver.GetProcessArgv0(&pan.Process)
+	if pan.Process.ArgsEntry != nil {
+		_, _ = resolver.GetProcessScrubbedArgv(&pan.Process)
+		pan.Process.Argv0, _ = resolver.GetProcessArgv0(&pan.Process)
+		pan.Process.ArgsEntry = nil
 
-	pan.Process.ArgsEntry = nil
-	pan.Process.EnvsEntry = nil
+	}
+	if pan.Process.EnvsEntry != nil {
+		envs, envsTruncated := resolver.GetProcessEnvs(&pan.Process)
+		pan.Process.Envs = envs
+		pan.Process.EnvsTruncated = envsTruncated
+		pan.Process.EnvsEntry = nil
+	}
 }
 
 // Matches return true if the process fields used to generate the dump are identical with the provided ProcessCacheEntry
-func (pan *ProcessActivityNode) Matches(entry *model.ProcessCacheEntry, matchArgs bool, processResolver *sprocess.Resolver) bool {
+func (pan *ProcessActivityNode) Matches(entry *model.Process, matchArgs bool) bool {
 
 	if pan.Process.Comm == entry.Comm && pan.Process.FileEvent.PathnameStr == entry.FileEvent.PathnameStr &&
 		pan.Process.Credentials == entry.Credentials {
 
 		if matchArgs {
-
-			panArgs, _ := processResolver.GetProcessArgv(&pan.Process)
-			entryArgs, _ := processResolver.GetProcessArgv(&entry.Process)
+			var panArgs, entryArgs []string
+			if pan.Process.ArgsEntry != nil {
+				panArgs, _ = sprocess.GetProcessArgv(&pan.Process)
+			} else {
+				panArgs = pan.Process.Argv
+			}
+			if entry.ArgsEntry != nil {
+				entryArgs, _ = sprocess.GetProcessArgv(entry)
+			} else {
+				entryArgs = entry.Argv
+			}
 			if len(panArgs) != len(entryArgs) {
 				return false
 			}
@@ -1210,7 +1222,7 @@ func (pan *ProcessActivityNode) Matches(entry *model.ProcessCacheEntry, matchArg
 	return false
 }
 
-func extractFirstParent(path string) (string, int) {
+func ExtractFirstParent(path string) (string, int) {
 	if len(path) == 0 {
 		return "", 0
 	}
@@ -1248,7 +1260,7 @@ func (ad *ActivityDump) InsertFileEventInProcess(pan *ProcessActivityNode, fileE
 		return false
 	}
 
-	parent, nextParentIndex := extractFirstParent(filePath)
+	parent, nextParentIndex := ExtractFirstParent(filePath)
 	if nextParentIndex == 0 {
 		return false
 	}
@@ -1598,6 +1610,7 @@ func (fan *FileActivityNode) getNodeLabel() string {
 	return label
 }
 
+// TODO: append seen syscalls/mode/flags instead of crushing them
 func (fan *FileActivityNode) enrichFromEvent(event *model.Event) {
 	if event == nil {
 		return
@@ -1626,7 +1639,7 @@ func (ad *ActivityDump) InsertFileEventInFile(fan *FileActivityNode, fileEvent *
 	somethingChanged := false
 
 	for {
-		parent, nextParentIndex := extractFirstParent(currentPath)
+		parent, nextParentIndex := ExtractFirstParent(currentPath)
 		if nextParentIndex == 0 {
 			currentFan.enrichFromEvent(event)
 			break

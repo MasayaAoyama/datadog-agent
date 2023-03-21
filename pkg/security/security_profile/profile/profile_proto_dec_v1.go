@@ -18,7 +18,10 @@ func protoToSecurityProfile(output *SecurityProfile, input *proto.SecurityProfil
 		return
 	}
 
-	output.Status = input.Status
+	output.Status = Status(input.Status)
+	if output.Status == UnknownStatus {
+		output.Status = Alert
+	}
 	output.Version = input.Version
 	output.Metadata = dump.ProtoMetadataToMetadata(input.Metadata)
 

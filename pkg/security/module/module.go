@@ -455,14 +455,9 @@ func (m *Module) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) 
 func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
 	ev := event.(*model.Event)
 
-	// ensure that all the fields are resolved before sending
-	ev.FieldHandlers.ResolveContainerID(ev, &ev.ContainerContext)
-	ev.FieldHandlers.ResolveContainerTags(ev, &ev.ContainerContext)
-
-	if ok, val := rule.Definition.GetTag("ruleset"); ok && val == "threat_score" {
-		if ev.ContainerContext.ID != "" && m.config.ActivityDumpTagRulesEnabled {
-			ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Definition.ID, rule.Definition.Version, rule.Definition.Tags, rule.Definition.Policy.Name, rule.Definition.Policy.Version))
-		}
+	if ok, val := rule.Definition.GetTag("ruleset"); ok && val == "threat_score" &&
+		ev.ContainerContext.ID != "" && m.config.ActivityDumpTagRulesEnabled {
+		ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Definition.ID, rule.Definition.Version, rule.Definition.Tags, rule.Definition.Policy.Name, rule.Definition.Policy.Version))
 		return // if the triggered rule is only meant to tag secdumps, dont send it
 	}
 
@@ -489,7 +484,12 @@ func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
 
 	// send if not selftest related events
 	if m.selfTester == nil || !m.selfTester.IsExpectedEvent(rule, event, m.probe) {
+		// if ev.ProfileState == model.MatchedAndAbsent {
+		// 	// TODO: send the event as an anomaly detection one
+		// 	m.eventSender.SendEvent(rule, event, extTagsCb, service)
+		// } else {
 		m.eventSender.SendEvent(rule, event, extTagsCb, service)
+		// }
 	}
 }
 

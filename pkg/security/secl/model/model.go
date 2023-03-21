@@ -150,6 +150,14 @@ type ContainerContext struct {
 	Tags      []string `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
 }
 
+type ProfileState uint32
+
+const (
+	NoProfileMatched  ProfileState = 0
+	MatchedAndPresent ProfileState = 1
+	MatchedAndAbsent  ProfileState = 2
+)
+
 // Event represents an event sent from the kernel
 // genaccessors
 type Event struct {
@@ -160,6 +168,7 @@ type Event struct {
 	TimestampRaw uint64         `field:"-" json:"-"`
 	Timestamp    time.Time      `field:"-"` // Timestamp of the event
 	Rules        []*MatchedRule `field:"-"`
+	ProfileState ProfileState   `field:"-"`
 
 	// context shared with all events
 	ProcessCacheEntry *ProcessCacheEntry `field:"-" json:"-"`

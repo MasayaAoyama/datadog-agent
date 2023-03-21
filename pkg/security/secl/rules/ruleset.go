@@ -527,6 +527,7 @@ func (rs *RuleSet) runRuleActions(ctx *eval.Context, rule *Rule) error {
 func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	ctx := rs.pool.Get(event)
 	defer rs.pool.Put(ctx)
+	ev := event.(*model.Event)
 
 	eventType := event.GetType()
 
@@ -536,28 +537,32 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 		return result
 	}
 
-	// Since logger is an interface this call cannot be inlined, requiring to pass the trace call arguments
-	// through the heap. To improve this situation we first check if we actually need to call the function.
-	if rs.logger.IsTracing() {
-		rs.logger.Tracef("Evaluating event of type `%s` against set of %d rules", eventType, len(bucket.rules))
-	}
+	// if an event is already validated through an active profile, there is no need to try to match rules
+	if ev.ProfileState != model.MatchedAndPresent {
+		// Since logger is an interface this call cannot be inlined, requiring to pass the trace call arguments
+		// through the heap. To improve this situation we first check if we actually need to call the function.
+		if rs.logger.IsTracing() {
+			rs.logger.Tracef("Evaluating event of type `%s` against set of %d rules", eventType, len(bucket.rules))
+		}
 
-	for _, rule := range bucket.rules {
-		if rule.GetEvaluator().Eval(ctx) {
+		for _, rule := range bucket.rules {
+			if rule.GetEvaluator().Eval(ctx) {
 
-			if rs.logger.IsTracing() {
-				rs.logger.Tracef("Rule `%s` matches with event `%s`\n", rule.ID, event)
-			}
+				if rs.logger.IsTracing() {
+					rs.logger.Tracef("Rule `%s` matches with event `%s`\n", rule.ID, event)
+				}
 
-			rs.NotifyRuleMatch(rule, event)
-			result = true
+				rs.NotifyRuleMatch(rule, event) // threatscore tagging
+				result = true
 
-			if err := rs.runRuleActions(ctx, rule); err != nil {
-				rs.logger.Errorf("Error while executing rule actions: %s", err)
+				if err := rs.runRuleActions(ctx, rule); err != nil {
+					rs.logger.Errorf("Error while executing rule actions: %s", err)
+				}
 			}
 		}
 	}
 
+	// if no rules matches, or if the event was validated against an active profile, push discarders
 	if !result {
 		if rs.logger.IsTracing() {
 			rs.logger.Tracef("Looking for discarders for event of type `%s`", eventType)

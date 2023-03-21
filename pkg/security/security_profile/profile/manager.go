@@ -22,7 +22,9 @@ import (
 	proto "github.com/DataDog/datadog-agent/pkg/security/proto/security_profile/v1"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // SecurityProfileManager is used to manage Security Profiles
@@ -360,4 +362,69 @@ func (m *SecurityProfileManager) linkProfile(profile *SecurityProfile, workload 
 // unlinkProfile (thread unsafe) updates the kernel space mapping between a workload and its profile
 func (m *SecurityProfileManager) unlinkProfile(profile *SecurityProfile, workload *cgroupModel.CacheEntry) {
 	// TODO: unlink profile <-> container ID in kernel space
+}
+
+func (m *SecurityProfileManager) LookupEventOnProfiles(event *model.Event) {
+	if event.GetEventType() == model.SyscallsEventType {
+		return // syscall matching for anomaly detection is already done kernel side
+	}
+	if event.ContainerContext.ID == "" || len(event.ContainerContext.Tags) < 1 {
+		return
+	}
+
+	// if time.Now()-event.ContainerContext.CreatedAt < time.Second*30 {
+	// 	// TODO: put the event in a cache to be pop back after x sec to have a chance to
+	// 	// retrieve a profile for that workload
+	// }
+
+	image := utils.GetTagValue("image_name", event.ContainerContext.Tags)
+	tags := utils.GetTagValue("image_tag", event.ContainerContext.Tags)
+	if image == "" {
+		return
+	} else if tags == "" {
+		tags = "latest"
+		event.ContainerContext.Tags = append(event.ContainerContext.Tags, "image_tag:latest")
+	}
+
+	selector := cgroupModel.NewWorkloadSelector(image, tags)
+	profile := m.GetProfile(selector)
+	if profile == nil || profile.Status == UnknownStatus {
+		return
+	}
+	event.ProfileState = model.MatchedAndAbsent
+
+	processNodes := profile.findProfileProcessNodes(event.ProcessContext)
+	if len(processNodes) == 0 {
+		return
+	}
+
+	switch event.GetEventType() {
+	// for fork/exec/exit events, as we already found some nodes, no need to investigate further
+	case model.ForkEventType:
+		event.ProfileState = model.MatchedAndPresent
+		fmt.Printf("FORK Event found in profile -> discarded\n")
+	case model.ExecEventType:
+		event.ProfileState = model.MatchedAndPresent
+		fmt.Printf("EXEC Event found in profile -> discarded\n")
+	case model.ExitEventType:
+		event.ProfileState = model.MatchedAndPresent
+		fmt.Printf("EXIT Event found in profile -> discarded\n")
+
+	case model.FileOpenEventType:
+		if findFileInNodes(processNodes, event) {
+			event.ProfileState = model.MatchedAndPresent
+			fmt.Printf("FILE Event found in profile -> discarded\n")
+		}
+	case model.DNSEventType:
+		if findDNSInNodes(processNodes, event) {
+			event.ProfileState = model.MatchedAndPresent
+			fmt.Printf("DNS Event found in profile -> discarded\n")
+		}
+	case model.BindEventType:
+		if findBindInNodes(processNodes, event) {
+			event.ProfileState = model.MatchedAndPresent
+			fmt.Printf("BIND Event found in profile -> discarded\n")
+		}
+	}
+	return
 }
