@@ -10,11 +10,12 @@ struct init_module_event_t {
 
     struct file_t file;
     char name[MODULE_NAME_LEN];
+    char args[128];
     u32 loaded_from_memory;
     u32 padding;
 };
 
-int __attribute__((always_inline)) trace_init_module(u32 loaded_from_memory) {
+int __attribute__((always_inline)) trace_init_module(u32 loaded_from_memory, const char* args) {
     struct policy_t policy = fetch_policy(EVENT_INIT_MODULE);
     if (is_discarded_by_process(policy.mode, EVENT_INIT_MODULE)) {
         return 0;
@@ -26,17 +27,19 @@ int __attribute__((always_inline)) trace_init_module(u32 loaded_from_memory) {
             .loaded_from_memory = loaded_from_memory,
         },
     };
+    bpf_probe_read_str(&syscall.init_module.args, sizeof(syscall.init_module.args), args);
 
     cache_syscall(&syscall);
     return 0;
 }
 
-SYSCALL_KPROBE0(init_module) {
-    return trace_init_module(1);
+
+SYSCALL_KPROBE3(init_module, void __user *, umod,unsigned long, len, const char __user *, uargs){
+    return trace_init_module(0,uargs);
 }
 
-SYSCALL_KPROBE0(finit_module) {
-    return trace_init_module(0);
+SYSCALL_KPROBE3(finit_module, int, fd, const char __user *, uargs, int, flags){
+    return trace_init_module(1,uargs);
 }
 
 int __attribute__((always_inline)) trace_kernel_file(struct pt_regs *ctx, struct file *f) {
@@ -98,12 +101,12 @@ int __attribute__((always_inline)) trace_init_module_ret(void *ctx, int retval, 
     if (!syscall) {
         return 0;
     }
-
     struct init_module_event_t event = {
         .syscall.retval = retval,
         .file = syscall->init_module.file,
         .loaded_from_memory = syscall->init_module.loaded_from_memory,
     };
+    bpf_probe_read_str(&event.args, sizeof(event.args), &syscall->init_module.args);
 
     if (!modname) {
         bpf_probe_read_str(&event.name, sizeof(event.name), &syscall->init_module.name[0]);
