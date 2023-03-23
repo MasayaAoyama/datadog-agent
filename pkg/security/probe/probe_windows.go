@@ -50,7 +50,7 @@ var eventZero model.Event
 
 func (p *Probe) zeroEvent() *model.Event {
 	*p.event = eventZero
-	//p.event.FieldHandlers = p.fieldHandlers
+	p.event.FieldHandlers = p.fieldHandlers
 	return p.event
 }
 
@@ -63,7 +63,7 @@ func (p *Probe) Start() error {
 		for {
 			var e *process.ProcessEntry
 			var err error
-			ev := &model.Event{}
+			ev := p.zeroEvent()
 			select {
 			case <-p.ctx.Done():
 				return
@@ -170,5 +170,11 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		return nil, err
 	}
 	p.resolvers = resolvers
+
+	p.fieldHandlers = &FieldHandlers{resolvers: resolvers}
+
+	// be sure to zero the probe event before everything else
+	p.zeroEvent()
+
 	return p, nil
 }

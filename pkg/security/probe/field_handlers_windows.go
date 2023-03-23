@@ -9,9 +9,28 @@
 package probe
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 type FieldHandlers struct {
 	resolvers *resolvers.Resolvers
+}
+
+// ResolveEventTimestamp resolves the monolitic kernel event timestamp to an absolute time
+func (fh *FieldHandlers) ResolveEventTimestamp(ev *model.Event) time.Time {
+	ev.Timestamp = time.Now()
+	return ev.Timestamp
+}
+
+// GetProcessServiceTag returns the service tag based on the process context
+func (fh *FieldHandlers) GetProcessServiceTag(ev *model.Event) string {
+	return ""
+}
+
+// ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
+func (fh *FieldHandlers) ResolveProcessCacheEntry(ev *model.Event) (*model.ProcessCacheEntry, bool) {
+	return nil, false
 }

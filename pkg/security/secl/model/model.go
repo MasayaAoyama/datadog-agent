@@ -186,12 +186,12 @@ type Event struct {
 	Mount       MountEvent    `field:"mount" event:"mount" platform:"linux"`             // [7.42] [File] [Experimental] A filesystem was mounted
 
 	// process events
-	Exec     ExecEvent     `field:"exec" event:"exec"`                      // [7.27] [Process] A process was executed or forked
+	Exec     ExecEvent     `field:"exec" event:"exec" platform:"linux"`     // [7.27] [Process] A process was executed or forked
 	SetUID   SetuidEvent   `field:"setuid" event:"setuid" platform:"linux"` // [7.27] [Process] A process changed its effective uid
 	SetGID   SetgidEvent   `field:"setgid" event:"setgid" platform:"linux"` // [7.27] [Process] A process changed its effective gid
 	Capset   CapsetEvent   `field:"capset" event:"capset" platform:"linux"` // [7.27] [Process] A process changed its capacity set
 	Signal   SignalEvent   `field:"signal" event:"signal" platform:"linux"` // [7.35] [Process] A signal was sent
-	Exit     ExitEvent     `field:"exit" event:"exit"`                      // [7.38] [Process] A process was terminated
+	Exit     ExitEvent     `field:"exit" event:"exit" platform:"linux"`     // [7.38] [Process] A process was terminated
 	Syscalls SyscallsEvent `field:"-" platform:"linux"`
 
 	// kernel events
