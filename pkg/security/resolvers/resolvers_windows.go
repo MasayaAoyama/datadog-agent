@@ -8,6 +8,26 @@
 
 package resolvers
 
+import (
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
+	"github.com/DataDog/datadog-go/v5/statsd"
+)
+
 // Resolvers holds the list of the event attribute resolvers
 type Resolvers struct {
+	ProcessResolver *process.ProcessResolver
+}
+
+// NewResolvers creates a new instance of Resolvers
+func NewResolvers(config *config.Config, statsdClient statsd.ClientInterface) (*Resolvers, error) {
+
+	processResolver, err := process.NewResolver(config, statsdClient, process.NewResolverOpts())
+	if err != nil {
+		return nil, err
+	}
+	resolvers := &Resolvers{
+		ProcessResolver: processResolver,
+	}
+	return resolvers, nil
 }

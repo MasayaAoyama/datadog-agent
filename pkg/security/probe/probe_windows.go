@@ -10,10 +10,13 @@ package probe
 
 import (
 	"context"
-	"golang.org/x/time/rate"
 	"time"
 
+	"golang.org/x/time/rate"
+
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/procmon"
@@ -23,11 +26,6 @@ type PlatformProbe struct {
 	pm      *procmon.WinProcmon
 	onStart chan *procmon.ProcessStartNotification
 	onStop  chan *procmon.ProcessStopNotification
-}
-
-// AddEventHandler set the probe event handler
-func (p *Probe) AddEventHandler(eventType model.EventType, handler EventHandler) error {
-	return nil
 }
 
 // Init initializes the probe
@@ -48,25 +46,73 @@ func (p *Probe) Setup() error {
 	return nil
 }
 
+var eventZero model.Event
+
+func (p *Probe) zeroEvent() *model.Event {
+	*p.event = eventZero
+	//p.event.FieldHandlers = p.fieldHandlers
+	return p.event
+}
+
 // Start processing events
 func (p *Probe) Start() error {
+	log.Infof("Windows probe started")
 	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()
 		for {
+			var e *process.ProcessEntry
+			var err error
+			ev := &model.Event{}
 			select {
 			case <-p.ctx.Done():
 				return
 			case start := <-p.onStart:
-				log.Infof("Start notification: %v", start)
+				log.Infof("Received start %v", start)
+				// this doesn't take into account the possibility of
+				// PID collision
+				e, err = p.resolvers.ProcessResolver.AddNewProcessEntry(process.Pid(start.Pid), start.ImageFile, start.CmdLine)
+				if err != nil {
+					// count the error and
+					log.Infof("error in resolver %v", err)
+					continue
+				}
+				ev.Type = uint32(model.ExecEventType)
 			case stop := <-p.onStop:
-				log.Infof("Stop notification: %v", stop)
-
+				log.Infof("Received stop %v", stop)
+				e = p.resolvers.ProcessResolver.GetProcessEntry(process.Pid(stop.Pid))
+				defer p.resolvers.ProcessResolver.DeleteProcessEntry(process.Pid(stop.Pid))
+				ev.Type = uint32(model.ExitEventType)
 			}
+
+			if e != nil {
+				proc := &model.Process{}
+				proc.PIDContext.Pid = uint32(e.Pid)
+				proc.Argv0 = e.ImageFile
+				proc.Argv = e.CommandLine
+				ev.Exec.Process = proc
+				p.DispatchEvent(ev)
+			}
+
 		}
 	}()
 	p.pm.Start()
 	return nil
+}
+
+// DispatchEvent sends an event to the probe event handler
+func (p *Probe) DispatchEvent(event *model.Event) {
+
+	// send wildcard first
+	for _, handler := range p.eventHandlers[model.UnknownEventType] {
+		handler.HandleEvent(event)
+	}
+
+	// send specific event
+	for _, handler := range p.eventHandlers[event.GetEventType()] {
+		handler.HandleEvent(event)
+	}
+
 }
 
 // Snapshot runs the different snapshot functions of the resolvers that
@@ -119,5 +165,10 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 			onStop:  make(chan *procmon.ProcessStopNotification),
 		},
 	}
+	resolvers, err := resolvers.NewResolvers(config, p.StatsdClient)
+	if err != nil {
+		return nil, err
+	}
+	p.resolvers = resolvers
 	return p, nil
 }

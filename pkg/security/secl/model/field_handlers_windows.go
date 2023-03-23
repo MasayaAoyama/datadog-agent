@@ -21,11 +21,204 @@ func (ev *Event) resolveFields(forADs bool) {
 	// resolve context fields that are not related to any event type
 	// resolve event specific fields
 	switch ev.GetEventType().String() {
+	case "exec":
+		if ev.Exec.Process.IsNotKworker() {
+			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Exec.Process.FileEvent.FileFields)
+		}
+		if ev.Exec.Process.IsNotKworker() {
+			_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Exec.Process.FileEvent.FileFields)
+		}
+		if ev.Exec.Process.IsNotKworker() {
+			_ = ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Exec.Process.FileEvent.FileFields)
+		}
+		if ev.Exec.Process.IsNotKworker() {
+			_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Exec.Process.FileEvent)
+		}
+		if ev.Exec.Process.IsNotKworker() {
+			_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exec.Process.FileEvent)
+		}
+		if ev.Exec.Process.IsNotKworker() {
+			_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Exec.Process.FileEvent)
+		}
+		if ev.Exec.Process.IsNotKworker() {
+			_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.Exec.Process.FileEvent)
+		}
+		if ev.Exec.Process.IsNotKworker() {
+			_ = ev.FieldHandlers.ResolvePackageVersion(ev, &ev.Exec.Process.FileEvent)
+		}
+		if ev.Exec.Process.IsNotKworker() {
+			_ = ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Exec.Process.FileEvent)
+		}
+		if ev.Exec.Process.HasInterpreter() {
+			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Exec.Process.LinuxBinprm.FileEvent.FileFields)
+		}
+		if ev.Exec.Process.HasInterpreter() {
+			_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Exec.Process.LinuxBinprm.FileEvent.FileFields)
+		}
+		if ev.Exec.Process.HasInterpreter() {
+			_ = ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Exec.Process.LinuxBinprm.FileEvent.FileFields)
+		}
+		if ev.Exec.Process.HasInterpreter() {
+			_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Exec.Process.LinuxBinprm.FileEvent)
+		}
+		if ev.Exec.Process.HasInterpreter() {
+			_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exec.Process.LinuxBinprm.FileEvent)
+		}
+		if ev.Exec.Process.HasInterpreter() {
+			_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Exec.Process.LinuxBinprm.FileEvent)
+		}
+		if ev.Exec.Process.HasInterpreter() {
+			_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.Exec.Process.LinuxBinprm.FileEvent)
+		}
+		if ev.Exec.Process.HasInterpreter() {
+			_ = ev.FieldHandlers.ResolvePackageVersion(ev, &ev.Exec.Process.LinuxBinprm.FileEvent)
+		}
+		if ev.Exec.Process.HasInterpreter() {
+			_ = ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Exec.Process.LinuxBinprm.FileEvent)
+		}
+		_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Exec.Process)
+		_ = ev.FieldHandlers.ResolveProcessArgv0(ev, ev.Exec.Process)
+		_ = ev.FieldHandlers.ResolveProcessArgs(ev, ev.Exec.Process)
+		_ = ev.FieldHandlers.ResolveProcessArgv(ev, ev.Exec.Process)
+		_ = ev.FieldHandlers.ResolveProcessArgsTruncated(ev, ev.Exec.Process)
+		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exec.Process)
+		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exec.Process)
+		_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.Exec.Process)
+	case "exit":
+		if ev.Exit.Process.IsNotKworker() {
+			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Exit.Process.FileEvent.FileFields)
+		}
+		if ev.Exit.Process.IsNotKworker() {
+			_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Exit.Process.FileEvent.FileFields)
+		}
+		if ev.Exit.Process.IsNotKworker() {
+			_ = ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Exit.Process.FileEvent.FileFields)
+		}
+		if ev.Exit.Process.IsNotKworker() {
+			_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Exit.Process.FileEvent)
+		}
+		if ev.Exit.Process.IsNotKworker() {
+			_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exit.Process.FileEvent)
+		}
+		if ev.Exit.Process.IsNotKworker() {
+			_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Exit.Process.FileEvent)
+		}
+		if ev.Exit.Process.IsNotKworker() {
+			_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.Exit.Process.FileEvent)
+		}
+		if ev.Exit.Process.IsNotKworker() {
+			_ = ev.FieldHandlers.ResolvePackageVersion(ev, &ev.Exit.Process.FileEvent)
+		}
+		if ev.Exit.Process.IsNotKworker() {
+			_ = ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Exit.Process.FileEvent)
+		}
+		if ev.Exit.Process.HasInterpreter() {
+			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields)
+		}
+		if ev.Exit.Process.HasInterpreter() {
+			_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields)
+		}
+		if ev.Exit.Process.HasInterpreter() {
+			_ = ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields)
+		}
+		if ev.Exit.Process.HasInterpreter() {
+			_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Exit.Process.LinuxBinprm.FileEvent)
+		}
+		if ev.Exit.Process.HasInterpreter() {
+			_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exit.Process.LinuxBinprm.FileEvent)
+		}
+		if ev.Exit.Process.HasInterpreter() {
+			_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Exit.Process.LinuxBinprm.FileEvent)
+		}
+		if ev.Exit.Process.HasInterpreter() {
+			_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.Exit.Process.LinuxBinprm.FileEvent)
+		}
+		if ev.Exit.Process.HasInterpreter() {
+			_ = ev.FieldHandlers.ResolvePackageVersion(ev, &ev.Exit.Process.LinuxBinprm.FileEvent)
+		}
+		if ev.Exit.Process.HasInterpreter() {
+			_ = ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Exit.Process.LinuxBinprm.FileEvent)
+		}
+		_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Exit.Process)
+		_ = ev.FieldHandlers.ResolveProcessArgv0(ev, ev.Exit.Process)
+		_ = ev.FieldHandlers.ResolveProcessArgs(ev, ev.Exit.Process)
+		_ = ev.FieldHandlers.ResolveProcessArgv(ev, ev.Exit.Process)
+		_ = ev.FieldHandlers.ResolveProcessArgsTruncated(ev, ev.Exit.Process)
+		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exit.Process)
+		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exit.Process)
+		_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.Exit.Process)
 	}
 }
 
 type FieldHandlers interface {
+	ResolveFileBasename(ev *Event, e *FileEvent) string
+	ResolveFileFieldsGroup(ev *Event, e *FileFields) string
+	ResolveFileFieldsInUpperLayer(ev *Event, e *FileFields) bool
+	ResolveFileFieldsUser(ev *Event, e *FileFields) string
+	ResolveFileFilesystem(ev *Event, e *FileEvent) string
+	ResolveFilePath(ev *Event, e *FileEvent) string
+	ResolvePackageName(ev *Event, e *FileEvent) string
+	ResolvePackageSourceVersion(ev *Event, e *FileEvent) string
+	ResolvePackageVersion(ev *Event, e *FileEvent) string
+	ResolveProcessArgs(ev *Event, e *Process) string
+	ResolveProcessArgsFlags(ev *Event, e *Process) []string
+	ResolveProcessArgsOptions(ev *Event, e *Process) []string
+	ResolveProcessArgsTruncated(ev *Event, e *Process) bool
+	ResolveProcessArgv(ev *Event, e *Process) []string
+	ResolveProcessArgv0(ev *Event, e *Process) string
+	ResolveProcessCreatedAt(ev *Event, e *Process) int
+	ResolveProcessEnvp(ev *Event, e *Process) []string
+	ResolveProcessEnvs(ev *Event, e *Process) []string
+	ResolveProcessEnvsTruncated(ev *Event, e *Process) bool
+	ResolveRights(ev *Event, e *FileFields) int
 	// custom handlers not tied to any fields
 	ExtraFieldHandlers
 }
 type DefaultFieldHandlers struct{}
+
+func (dfh *DefaultFieldHandlers) ResolveFileBasename(ev *Event, e *FileEvent) string {
+	return e.BasenameStr
+}
+func (dfh *DefaultFieldHandlers) ResolveFileFieldsGroup(ev *Event, e *FileFields) string {
+	return e.Group
+}
+func (dfh *DefaultFieldHandlers) ResolveFileFieldsInUpperLayer(ev *Event, e *FileFields) bool {
+	return e.InUpperLayer
+}
+func (dfh *DefaultFieldHandlers) ResolveFileFieldsUser(ev *Event, e *FileFields) string {
+	return e.User
+}
+func (dfh *DefaultFieldHandlers) ResolveFileFilesystem(ev *Event, e *FileEvent) string {
+	return e.Filesystem
+}
+func (dfh *DefaultFieldHandlers) ResolveFilePath(ev *Event, e *FileEvent) string {
+	return e.PathnameStr
+}
+func (dfh *DefaultFieldHandlers) ResolvePackageName(ev *Event, e *FileEvent) string { return e.PkgName }
+func (dfh *DefaultFieldHandlers) ResolvePackageSourceVersion(ev *Event, e *FileEvent) string {
+	return e.PkgSrcVersion
+}
+func (dfh *DefaultFieldHandlers) ResolvePackageVersion(ev *Event, e *FileEvent) string {
+	return e.PkgVersion
+}
+func (dfh *DefaultFieldHandlers) ResolveProcessArgs(ev *Event, e *Process) string { return e.Args }
+func (dfh *DefaultFieldHandlers) ResolveProcessArgsFlags(ev *Event, e *Process) []string {
+	return e.Argv
+}
+func (dfh *DefaultFieldHandlers) ResolveProcessArgsOptions(ev *Event, e *Process) []string {
+	return e.Argv
+}
+func (dfh *DefaultFieldHandlers) ResolveProcessArgsTruncated(ev *Event, e *Process) bool {
+	return e.ArgsTruncated
+}
+func (dfh *DefaultFieldHandlers) ResolveProcessArgv(ev *Event, e *Process) []string { return e.Argv }
+func (dfh *DefaultFieldHandlers) ResolveProcessArgv0(ev *Event, e *Process) string  { return e.Argv0 }
+func (dfh *DefaultFieldHandlers) ResolveProcessCreatedAt(ev *Event, e *Process) int {
+	return int(e.CreatedAt)
+}
+func (dfh *DefaultFieldHandlers) ResolveProcessEnvp(ev *Event, e *Process) []string { return e.Envp }
+func (dfh *DefaultFieldHandlers) ResolveProcessEnvs(ev *Event, e *Process) []string { return e.Envs }
+func (dfh *DefaultFieldHandlers) ResolveProcessEnvsTruncated(ev *Event, e *Process) bool {
+	return e.EnvsTruncated
+}
+func (dfh *DefaultFieldHandlers) ResolveRights(ev *Event, e *FileFields) int { return int(e.Mode) }
