@@ -35,11 +35,11 @@ int __attribute__((always_inline)) trace_init_module(u32 loaded_from_memory, con
 
 
 SYSCALL_KPROBE3(init_module, void __user *, umod,unsigned long, len, const char __user *, uargs){
-    return trace_init_module(0,uargs);
+    return trace_init_module(1,uargs);
 }
 
 SYSCALL_KPROBE3(finit_module, int, fd, const char __user *, uargs, int, flags){
-    return trace_init_module(1,uargs);
+    return trace_init_module(0,uargs);
 }
 
 int __attribute__((always_inline)) trace_kernel_file(struct pt_regs *ctx, struct file *f) {
