@@ -17,13 +17,9 @@ import "C"
 const Signature = C.DD_PROCMONDRIVER_SIGNATURE
 
 const (
-	GetNewProcsIOCTL  = C.DDPROCMONDRIVER_IOCTL_GET_NEWPROCS
-	GetDeadProcsIOCTL = C.DDPROCMONDRIVER_IOCTL_GET_DEADPROCS
-)
-
-const (
 	ProcmonNotifyStop  = C.DD_NOTIFY_STOP
 	ProcmonNotifyStart = C.DD_NOTIFY_START
 )
 
+type DDProcessNotifyType C.enum__dd_notify_type
 type DDProcessNotification C.struct__dd_process_notification
