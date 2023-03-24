@@ -15,7 +15,7 @@ struct init_module_event_t {
     u32 padding;
 };
 
-int __attribute__((always_inline)) trace_init_module(u32 loaded_from_memory, const char* args) {
+int __attribute__((always_inline)) trace_init_module(u32 loaded_from_memory) {
     struct policy_t policy = fetch_policy(EVENT_INIT_MODULE);
     if (is_discarded_by_process(policy.mode, EVENT_INIT_MODULE)) {
         return 0;
@@ -27,19 +27,18 @@ int __attribute__((always_inline)) trace_init_module(u32 loaded_from_memory, con
             .loaded_from_memory = loaded_from_memory,
         },
     };
-    bpf_probe_read_str(&syscall.init_module.args, sizeof(syscall.init_module.args), args);
 
     cache_syscall(&syscall);
     return 0;
 }
 
 
-SYSCALL_KPROBE3(init_module, void __user *, umod,unsigned long, len, const char __user *, uargs){
-    return trace_init_module(1,uargs);
+SYSCALL_KPROBE0(init_module){
+    return trace_init_module(1);
 }
 
-SYSCALL_KPROBE3(finit_module, int, fd, const char __user *, uargs, int, flags){
-    return trace_init_module(0,uargs);
+SYSCALL_KPROBE0(finit_module){
+    return trace_init_module(0);
 }
 
 int __attribute__((always_inline)) trace_kernel_file(struct pt_regs *ctx, struct file *f) {
@@ -61,6 +60,18 @@ int __attribute__((always_inline)) trace_kernel_file(struct pt_regs *ctx, struct
     resolve_dentry(ctx, DR_KPROBE);
     return 0;
 }
+
+SEC("kprobe/parse_args")
+int kprobe_parse_args(struct pt_regs *ctx){
+    char *args = (char *) PT_REGS_PARM2(ctx);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_INIT_MODULE);
+    if (!syscall) {
+        return 0;
+    }
+    bpf_probe_read_str(&syscall->init_module.args, sizeof(syscall->init_module.args), args);
+    return 0;
+}
+
 
 SEC("kprobe/security_kernel_module_from_file")
 int kprobe_security_kernel_module_from_file(struct pt_regs *ctx) {
