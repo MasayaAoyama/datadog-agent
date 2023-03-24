@@ -77,8 +77,6 @@ func (p *ProcessConsumer) SendStats() {
 
 // HandleEvent implement the event monitor EventHandler interface
 func (p *ProcessConsumer) HandleEvent(event *smodel.Event) {
-	log.Infof("Got an Event!!!!")
-
 	// Force resolution of all event fields before exposing it through the API server
 	event.ResolveFields()
 	event.ResolveEventTimestamp()
