@@ -49,8 +49,6 @@ k8s-e2e-tags-6:
   extends: .k8s_e2e_template
   rules:
     !reference [.on_deploy_stable_or_beta_repo_branch_a6_manual]
-  dependencies:
-    - setup_agent_version
   script:
     - AGENT_VERSION=$(inv -e agent.version --major-version 6)
     - DCA_VERSION=$(inv -e cluster-agent.version)
@@ -60,8 +58,6 @@ k8s-e2e-tags-7:
   extends: .k8s_e2e_template
   rules:
     !reference [.on_deploy_stable_or_beta_repo_branch_a7_manual]
-  dependencies:
-    - setup_agent_version
   script:
     - AGENT_VERSION=$(inv -e agent.version --major-version 7)
     - DCA_VERSION=$(inv -e cluster-agent.version)
