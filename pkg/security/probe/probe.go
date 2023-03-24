@@ -112,3 +112,6 @@ func (p *Probe) zeroEvent() *model.Event {
 	p.event.FieldHandlers = p.fieldHandlers
 	return p.event
 }
+func (p *Probe) StatsPollingInterval() time.Duration {
+	return p.Config.Probe.StatsPollingInterval
+}

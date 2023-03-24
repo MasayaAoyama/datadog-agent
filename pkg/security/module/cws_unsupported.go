@@ -10,12 +10,14 @@ package module
 
 import (
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 )
 
 type CWSConsumer struct{}
 
-func NewCWSConsumer(evm *eventmonitor.EventMonitor, opts ...Opts) (*CWSConsumer, error) {
+func NewCWSConsumer(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurityConfig, opts ...Opts) (*CWSConsumer, error) {
 	return nil, fmt.Errorf("CWS is only supported on linux")
 }
 
