@@ -16,6 +16,8 @@
     - deploy_packages_suse_rpm-7
     - deploy_packages_dmg-a7
     - deploy_packages_windows-7
+  dependencies:
+    - setup_agent_version
   variables:
     ACTION: promote
     BUILD_PIPELINE_ID: $CI_PIPELINE_ID
