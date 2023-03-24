@@ -350,12 +350,6 @@ func (p *Probe) GetMonitor() *Monitor {
 	return p.monitor
 }
 
-func (p *Probe) zeroEvent() *model.Event {
-	*p.event = eventZero
-	p.event.FieldHandlers = p.fieldHandlers
-	return p.event
-}
-
 func (p *Probe) unmarshalContexts(data []byte, event *model.Event) (int, error) {
 	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, &event.ContainerContext)
 	if err != nil {

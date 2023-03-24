@@ -22,6 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/procmon"
 )
 
+var eventZero model.Event
+
 type PlatformProbe struct {
 	pm      *procmon.WinProcmon
 	onStart chan *procmon.ProcessStartNotification
@@ -44,14 +46,6 @@ func (p *Probe) Init() error {
 // Setup the runtime security probe
 func (p *Probe) Setup() error {
 	return nil
-}
-
-var eventZero model.Event
-
-func (p *Probe) zeroEvent() *model.Event {
-	*p.event = eventZero
-	p.event.FieldHandlers = p.fieldHandlers
-	return p.event
 }
 
 // Start processing events
