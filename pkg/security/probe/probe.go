@@ -13,14 +13,11 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"golang.org/x/time/rate"
 )
 
 // EventHandler represents an handler for the events sent by the probe
@@ -35,15 +32,6 @@ type CustomEventHandler interface {
 
 // NotifyDiscarderPushedCallback describe the callback used to retrieve pushed discarders information
 type NotifyDiscarderPushedCallback func(eventType string, event *model.Event, field string)
-
-var (
-	// defaultEventTypes event types used whatever the event handlers or the rules
-	defaultEventTypes = []eval.EventType{
-		model.ForkEventType.String(),
-		model.ExecEventType.String(),
-		model.ExecEventType.String(),
-	}
-)
 
 // Probe represents the runtime security eBPF probe in charge of
 // setting up the required kProbes and decoding events sent from the kernel
@@ -67,17 +55,6 @@ type Probe struct {
 	resolvers     *resolvers.Resolvers
 	fieldHandlers *FieldHandlers
 	event         *model.Event
-	scrubber      *procutil.DataScrubber
-
-	// Approvers / discarders section
-	discarderRateLimiter               *rate.Limiter
-	notifyDiscarderPushedCallbacks     []NotifyDiscarderPushedCallback
-	notifyDiscarderPushedCallbacksLock sync.Mutex
-
-	constantOffsets map[string]uint64
-	runtimeCompiled bool
-
-	isRuntimeDiscarded bool
 }
 
 // GetResolvers returns the resolvers of Probe

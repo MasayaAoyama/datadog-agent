@@ -67,6 +67,15 @@ type EventStream interface {
 	Resume() error
 }
 
+var (
+	// defaultEventTypes event types used whatever the event handlers or the rules
+	defaultEventTypes = []eval.EventType{
+		model.ForkEventType.String(),
+		model.ExecEventType.String(),
+		model.ExecEventType.String(),
+	}
+)
+
 type PlatformProbe struct {
 	// Constants and configuration
 	Manager        *manager.Manager
@@ -74,7 +83,8 @@ type PlatformProbe struct {
 	kernelVersion  *kernel.Version
 
 	// internals
-	monitor *Monitor
+	monitor  *Monitor
+	scrubber *procutil.DataScrubber
 
 	// Ring
 	eventStream EventStream
@@ -83,11 +93,20 @@ type PlatformProbe struct {
 	activityDumpHandler dump.ActivityDumpHandler
 
 	// Approvers / discarders section
-	Erpc            *erpc.ERPC
-	erpcRequest     *erpc.ERPCRequest
-	pidDiscarders   *pidDiscarders
-	inodeDiscarders *inodeDiscarders
-	approvers       map[eval.EventType]kfilters.ActiveApprovers
+	Erpc                           *erpc.ERPC
+	erpcRequest                    *erpc.ERPCRequest
+	pidDiscarders                  *pidDiscarders
+	inodeDiscarders                *inodeDiscarders
+	notifyDiscarderPushedCallbacks []NotifyDiscarderPushedCallback
+	approvers                      map[eval.EventType]kfilters.ActiveApprovers
+
+	// Approvers / discarders section
+	discarderRateLimiter               *rate.Limiter
+	notifyDiscarderPushedCallbacksLock sync.Mutex
+
+	isRuntimeDiscarded bool
+	constantOffsets    map[string]uint64
+	runtimeCompiled    bool
 }
 
 func (p *Probe) detectKernelVersion() error {
@@ -1243,20 +1262,20 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	p := &Probe{
-		Opts:                 opts,
-		Config:               config,
-		ctx:                  ctx,
-		cancelFnc:            cancel,
-		StatsdClient:         opts.StatsdClient,
-		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),
-		isRuntimeDiscarded:   !opts.DontDiscardRuntime,
-		event:                &model.Event{},
+		Opts:         opts,
+		Config:       config,
+		ctx:          ctx,
+		cancelFnc:    cancel,
+		StatsdClient: opts.StatsdClient,
+		event:        &model.Event{},
 
 		PlatformProbe: PlatformProbe{
-			approvers:      make(map[eval.EventType]kfilters.ActiveApprovers),
-			managerOptions: ebpf.NewDefaultOptions(),
-			Erpc:           nerpc,
-			erpcRequest:    &erpc.ERPCRequest{},
+			approvers:            make(map[eval.EventType]kfilters.ActiveApprovers),
+			managerOptions:       ebpf.NewDefaultOptions(),
+			Erpc:                 nerpc,
+			erpcRequest:          &erpc.ERPCRequest{},
+			discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),
+			isRuntimeDiscarded:   !opts.DontDiscardRuntime,
 		},
 	}
 

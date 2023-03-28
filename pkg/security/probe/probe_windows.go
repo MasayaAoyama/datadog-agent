@@ -90,8 +90,7 @@ func (p *Probe) Start() error {
 
 		}
 	}()
-	p.pm.Start()
-	return nil
+	return p.pm.Start()
 }
 
 // DispatchEvent sends an event to the probe event handler

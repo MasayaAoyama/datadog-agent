@@ -93,7 +93,9 @@ func (olr *OverlappedReader) Open(name string) error {
 }
 
 func (olr *OverlappedReader) Read() error {
-	olr.createBuffers()
+	if err := olr.createBuffers(); err != nil {
+		return fmt.Errorf("Failed to create overlapped read buffers")
+	}
 	if err := olr.initiateReads(); err != nil {
 		return err
 	}
@@ -167,6 +169,6 @@ func (olr *OverlappedReader) createBuffers() error {
 
 func (olr *OverlappedReader) cleanBuffers() {
 	for _, buf := range olr.buffers {
-		C.free(unsafe.Pointer(buf))
+		C.free(unsafe.Pointer(buf)) //nolint:govet
 	}
 }
