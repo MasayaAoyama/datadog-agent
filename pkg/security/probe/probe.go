@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -51,6 +52,7 @@ type Probe struct {
 	eventHandlers       [model.MaxAllEventType][]EventHandler
 	customEventHandlers [model.MaxAllEventType][]CustomEventHandler
 
+	discarderRateLimiter *rate.Limiter
 	// internals
 	resolvers     *resolvers.Resolvers
 	fieldHandlers *FieldHandlers

@@ -101,7 +101,6 @@ type PlatformProbe struct {
 	approvers                      map[eval.EventType]kfilters.ActiveApprovers
 
 	// Approvers / discarders section
-	discarderRateLimiter               *rate.Limiter
 	notifyDiscarderPushedCallbacksLock sync.Mutex
 
 	isRuntimeDiscarded bool
@@ -1262,20 +1261,20 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	p := &Probe{
-		Opts:         opts,
-		Config:       config,
-		ctx:          ctx,
-		cancelFnc:    cancel,
-		StatsdClient: opts.StatsdClient,
-		event:        &model.Event{},
+		Opts:                 opts,
+		Config:               config,
+		ctx:                  ctx,
+		cancelFnc:            cancel,
+		StatsdClient:         opts.StatsdClient,
+		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),
+		event:                &model.Event{},
 
 		PlatformProbe: PlatformProbe{
-			approvers:            make(map[eval.EventType]kfilters.ActiveApprovers),
-			managerOptions:       ebpf.NewDefaultOptions(),
-			Erpc:                 nerpc,
-			erpcRequest:          &erpc.ERPCRequest{},
-			discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),
-			isRuntimeDiscarded:   !opts.DontDiscardRuntime,
+			approvers:          make(map[eval.EventType]kfilters.ActiveApprovers),
+			managerOptions:     ebpf.NewDefaultOptions(),
+			Erpc:               nerpc,
+			erpcRequest:        &erpc.ERPCRequest{},
+			isRuntimeDiscarded: !opts.DontDiscardRuntime,
 		},
 	}
 
