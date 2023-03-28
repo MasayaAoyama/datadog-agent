@@ -146,7 +146,7 @@ LINUX_ONLY_TAGS = {"netcgo", "systemd", "jetson", "linux_bpf", "podman", "trivy"
 WINDOWS_EXCLUDE_TAGS = {"linux_bpf"}
 
 # List of tags to always remove when building on Darwin/macOS
-DARWIN_EXCLUDED_TAGS = {"docker", "containerd", "cri"}
+DARWIN_EXCLUDED_TAGS = {"docker", "cri"}
 
 # List of tags to always remove when building on Windows 32-bits
 WINDOWS_32BIT_EXCLUDE_TAGS = {"docker", "kubeapiserver", "kubelet", "orchestrator"}
