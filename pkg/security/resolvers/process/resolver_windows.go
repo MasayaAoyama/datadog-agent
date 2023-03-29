@@ -13,18 +13,14 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 type Pid uint32
-type ProcessEntry struct {
-	Pid         Pid
-	ImageFile   string
-	CommandLine []string
-}
 type ProcessResolver struct {
 	maplock   sync.Mutex
-	processes map[Pid]*ProcessEntry
+	processes map[Pid]*model.ProcessCacheEntry
 	opts      ProcessResolverOpts
 }
 
@@ -37,7 +33,7 @@ func NewResolver(config *config.Config, statsdClient statsd.ClientInterface,
 	opts ProcessResolverOpts) (*ProcessResolver, error) {
 
 	p := &ProcessResolver{
-		processes: make(map[Pid]*ProcessEntry),
+		processes: make(map[Pid]*model.ProcessCacheEntry),
 		opts:      opts,
 	}
 
@@ -49,19 +45,22 @@ func NewResolverOpts() ProcessResolverOpts {
 	return ProcessResolverOpts{}
 }
 
-func (p *ProcessResolver) AddNewProcessEntry(pid Pid, file string, commandLine string) (*ProcessEntry, error) {
-	e := &ProcessEntry{
-		Pid:         pid,
-		ImageFile:   file,
-		CommandLine: strings.Split(commandLine, " "),
-	}
+func (p *ProcessResolver) AddNewProcessEntry(pid Pid, file string, commandLine string) (*model.ProcessCacheEntry, error) {
+	e := model.NewEmptyProcessCacheEntry(uint32(pid), 0, false)
+
+	e.Process.PIDContext.Pid = uint32(e.Pid)
+	e.Process.Argv0 = file
+	e.Process.Argv = strings.Split(commandLine, " ")
+	
+
+	// where do we put the file and the command line?
 	p.maplock.Lock()
 	defer p.maplock.Unlock()
 	p.processes[pid] = e
 	return e, nil
 }
 
-func (p *ProcessResolver) GetProcessEntry(pid Pid) *ProcessEntry {
+func (p *ProcessResolver) GetProcessEntry(pid Pid) *model.ProcessCacheEntry {
 	p.maplock.Lock()
 	defer p.maplock.Unlock()
 	if e, ok := p.processes[pid]; ok {

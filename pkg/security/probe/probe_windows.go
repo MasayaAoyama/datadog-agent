@@ -55,8 +55,8 @@ func (p *Probe) Start() error {
 	go func() {
 		defer p.wg.Done()
 		for {
-			var e *process.ProcessEntry
 			var err error
+			var e *model.ProcessCacheEntry
 			ev := p.zeroEvent()
 			select {
 			case <-p.ctx.Done():
@@ -80,11 +80,8 @@ func (p *Probe) Start() error {
 			}
 
 			if e != nil {
-				proc := &model.Process{}
-				proc.PIDContext.Pid = uint32(e.Pid)
-				proc.Argv0 = e.ImageFile
-				proc.Argv = e.CommandLine
-				ev.Exec.Process = proc
+
+				ev.ProcessCacheEntry = e
 				p.DispatchEvent(ev)
 			}
 
