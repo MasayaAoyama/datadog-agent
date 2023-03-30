@@ -72,10 +72,11 @@ type Client struct {
 	state *state.Repository
 
 	// Listeners
-	apmListeners        []func(update map[string]state.APMSamplingConfig)
-	cwsListeners        []func(update map[string]state.ConfigCWSDD)
-	cwsCustomListeners  []func(update map[string]state.ConfigCWSCustom)
-	apmTracingListeners []func(update map[string]state.APMTracingConfig)
+	apmListeners         []func(update map[string]state.APMSamplingConfig)
+	cwsListeners         []func(update map[string]state.ConfigCWSDD)
+	cwsCustomListeners   []func(update map[string]state.ConfigCWSCustom)
+	cwsProfilesListeners []func(update map[string]state.ConfigCWSProfiles)
+	apmTracingListeners  []func(update map[string]state.APMTracingConfig)
 }
 
 // agentGRPCConfigFetcher defines how to retrieve config updates over a
@@ -185,23 +186,24 @@ func newClient(agentName string, updater ConfigUpdater, doTufVerification bool, 
 	ctx, close := context.WithCancel(context.Background())
 
 	return &Client{
-		ID:                  generateID(),
-		startupSync:         sync.Once{},
-		ctx:                 ctx,
-		close:               close,
-		agentName:           agentName,
-		agentVersion:        agentVersion,
-		clusterName:         clusterName,
-		clusterID:           clusterID,
-		products:            data.ProductListToString(products),
-		state:               repository,
-		pollInterval:        pollInterval,
-		backoffPolicy:       backoffPolicy,
-		apmListeners:        make([]func(update map[string]state.APMSamplingConfig), 0),
-		cwsListeners:        make([]func(update map[string]state.ConfigCWSDD), 0),
-		cwsCustomListeners:  make([]func(update map[string]state.ConfigCWSCustom), 0),
-		apmTracingListeners: make([]func(update map[string]state.APMTracingConfig), 0),
-		updater:             updater,
+		ID:                   generateID(),
+		startupSync:          sync.Once{},
+		ctx:                  ctx,
+		close:                close,
+		agentName:            agentName,
+		agentVersion:         agentVersion,
+		clusterName:          clusterName,
+		clusterID:            clusterID,
+		products:             data.ProductListToString(products),
+		state:                repository,
+		pollInterval:         pollInterval,
+		backoffPolicy:        backoffPolicy,
+		apmListeners:         make([]func(update map[string]state.APMSamplingConfig), 0),
+		cwsListeners:         make([]func(update map[string]state.ConfigCWSDD), 0),
+		cwsCustomListeners:   make([]func(update map[string]state.ConfigCWSCustom), 0),
+		cwsProfilesListeners: make([]func(update map[string]state.ConfigCWSProfiles), 0),
+		apmTracingListeners:  make([]func(update map[string]state.APMTracingConfig), 0),
+		updater:              updater,
 	}, nil
 }
 
@@ -292,6 +294,11 @@ func (c *Client) update() error {
 			listener(c.state.CWSCustomConfigs())
 		}
 	}
+	if containsProduct(changedProducts, state.ProductCWSProfiles) {
+		for _, listener := range c.cwsProfilesListeners {
+			listener(c.state.CWSProfilesConfigs())
+		}
+	}
 	if containsProduct(changedProducts, state.ProductAPMTracing) {
 		for _, listener := range c.apmTracingListeners {
 			listener(c.state.APMTracingConfigs())
@@ -338,6 +345,15 @@ func (c *Client) RegisterCWSCustomUpdate(fn func(update map[string]state.ConfigC
 	fn(c.state.CWSCustomConfigs())
 }
 
+// RegisterCWSProfilesUpdate registers a callback function to be called after a successful client update that will
+// contain the current state of the CWS_SECURITY_PROFILES product.
+func (c *Client) RegisterCWSProfilesUpdate(fn func(update map[string]state.ConfigCWSProfiles)) {
+	c.m.Lock()
+	defer c.m.Unlock()
+	c.cwsProfilesListeners = append(c.cwsProfilesListeners, fn)
+	fn(c.state.CWSProfilesConfigs())
+}
+
 // RegisterAPMTracing registers a callback function to be called after a successful client update that will
 // contain the current state of the APMTracing product.
 func (c *Client) RegisterAPMTracing(fn func(update map[string]state.APMTracingConfig)) {
@@ -368,6 +384,20 @@ func (c *Client) applyUpdate(pbUpdate *pbgo.ClientGetConfigsResponse) ([]string,
 	}
 
 	return c.state.Update(update)
+}
+
+func (c *Client) UpdateClusterName(name string) {
+	c.m.Lock()
+	defer c.m.Unlock()
+
+	c.clusterName = name
+}
+
+func (c *Client) UpdateClusterID(id string) {
+	c.m.Lock()
+	defer c.m.Unlock()
+
+	c.clusterID = id
 }
 
 // newUpdateRequests builds a new request for the agent based on the current state of the
@@ -409,6 +439,11 @@ func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
 		})
 	}
 
+	c.m.Lock()
+	clusterName := c.clusterName
+	clusterID := c.clusterID
+	c.m.Unlock()
+
 	req := &pbgo.ClientGetConfigsRequest{
 		Client: &pbgo.Client{
 			State: &pbgo.ClientState{
@@ -426,8 +461,8 @@ func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
 			ClientAgent: &pbgo.ClientAgent{
 				Name:        c.agentName,
 				Version:     c.agentVersion,
-				ClusterName: c.clusterName,
-				ClusterId:   c.clusterID,
+				ClusterName: clusterName,
+				ClusterId:   clusterID,
 			},
 		},
 		CachedTargetFiles: pbCachedFiles,

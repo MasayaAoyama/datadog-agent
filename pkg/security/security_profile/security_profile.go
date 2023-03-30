@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -66,6 +67,15 @@ func (e *ProfileHandler) Init(manager *manager.Manager, resolvers *resolvers.Res
 				return fmt.Errorf("couldn't instantiate a new security profile directory provider: %w", err)
 			}
 			providers = append(providers, dirProvider)
+		}
+
+		// instantiate remote-config provider
+		if e.Config.RemoteConfigurationEnabled {
+			rcProvider, err := rconfig.NewRCProfileProvider()
+			if err != nil {
+				return fmt.Errorf("couldn't instantiate a new security profile remote-config provider: %w", err)
+			}
+			providers = append(providers, rcProvider)
 		}
 
 		e.securityProfileManager, err = profile.NewSecurityProfileManager(e.Config, e.StatsdClient, resolvers.CGroupResolver, providers)

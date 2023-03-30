@@ -70,7 +70,6 @@ func (m *SecurityProfileManager) Start(ctx context.Context) {
 	for _, p := range m.providers {
 		if err := p.Start(ctx); err != nil {
 			seclog.Errorf("couldn't start profile provider: %v", err)
-			return
 		}
 	}
 
