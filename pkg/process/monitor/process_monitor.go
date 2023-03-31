@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/gopsutil/process"
@@ -47,7 +48,7 @@ var (
 type ProcessMonitor struct {
 	m        sync.Mutex
 	wg       sync.WaitGroup
-	refcount int
+	refcount atomic.Int32
 
 	isInitialized bool
 
@@ -199,21 +200,13 @@ func (pm *ProcessMonitor) evalEXITCallback(c *ProcessCallback, pid uint32) {
 	}
 }
 
-// terminateProcessMonitor is a helper function of Initialize. The goal is to make sure we properly terminate our
-// go-routine.
-func (pm *ProcessMonitor) terminateProcessMonitor() {
-	log.Info("netlink process monitor ended")
-	pm.wg.Done()
-	close(pm.callbackRunner)
-}
-
 // Initialize will scan all running processes and execute matching callbacks
 // Once it's done all new events from netlink socket will be processed by the main async loop
 func (pm *ProcessMonitor) Initialize() error {
 	pm.m.Lock()
 	defer pm.m.Unlock()
 
-	pm.refcount++
+	pm.refcount.Add(1)
 	if pm.isInitialized {
 		return nil
 	}
@@ -249,12 +242,12 @@ func (pm *ProcessMonitor) Initialize() error {
 	go func() {
 		logTicker := time.NewTicker(2 * time.Minute)
 
-		terminated := false
 		defer func() {
-			if !terminated {
-				pm.terminateProcessMonitor()
-			}
 			logTicker.Stop()
+			close(pm.callbackRunner)
+			pm.isInitialized = false
+			pm.wg.Done()
+			log.Info("netlink process monitor ended")
 		}()
 
 		for {
@@ -293,9 +286,8 @@ func (pm *ProcessMonitor) Initialize() error {
 					return
 				}
 				log.Errorf("process monitor error: %s", err)
-				pm.terminateProcessMonitor()
-				terminated = true
-				pm.Stop()
+				// closing netlink subscription
+				close(pm.done)
 				return
 
 			case <-logTicker.C:
@@ -373,21 +365,15 @@ func (pm *ProcessMonitor) Subscribe(callback *ProcessCallback) (UnSubscribe func
 }
 
 func (pm *ProcessMonitor) Stop() {
-	pm.m.Lock()
-	if pm.refcount == 0 {
-		pm.m.Unlock()
+	if pm.refcount.Load() == 0 {
 		return
 	}
-
-	pm.refcount--
-	if pm.refcount > 0 {
-		pm.m.Unlock()
+	if pm.refcount.Add(-1) > 0 {
 		return
 	}
-
-	pm.isInitialized = false
-	pm.m.Unlock()
-	close(pm.done)
+	if pm.done != nil {
+		close(pm.done)
+	}
 	pm.wg.Wait()
 }
 
