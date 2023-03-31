@@ -30,6 +30,8 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -94,17 +96,19 @@ var (
 // setting up the required kProbes and decoding events sent from the kernel
 type Probe struct {
 	// Constants and configuration
-	Opts           Opts
-	Manager        *manager.Manager
-	managerOptions manager.Options
-	Config         *config.Config
-	StatsdClient   statsd.ClientInterface
-	startTime      time.Time
-	kernelVersion  *kernel.Version
-	_              uint32 // padding for goarch=386
-	ctx            context.Context
-	cancelFnc      context.CancelFunc
-	wg             sync.WaitGroup
+	Opts              Opts
+	Manager           *manager.Manager
+	managerOptions    manager.Options
+	BTFManager        *manager.Manager
+	btfManagerOptions *manager.Options
+	Config            *config.Config
+	StatsdClient      statsd.ClientInterface
+	startTime         time.Time
+	kernelVersion     *kernel.Version
+	_                 uint32 // padding for goarch=386
+	ctx               context.Context
+	cancelFnc         context.CancelFunc
+	wg                sync.WaitGroup
 
 	// Events section
 	eventHandlers       [model.MaxAllEventType][]EventHandler
@@ -298,6 +302,13 @@ func (p *Probe) Init() error {
 	}
 
 	p.eventStream.SetMonitor(p.monitor.perfBufferMonitor)
+
+	// initialize CO-RE manager
+	if err = ddebpf.LoadCOREAsset(&p.Config.Probe.Config, "runtime-security-core.o", func(reader bytecode.AssetReader, options manager.Options) error {
+		return p.BTFManager.InitWithOptions(reader, options)
+	}); err != nil {
+		seclog.Warnf("couldn't load BTF manager: %s", err)
+	}
 
 	return nil
 }

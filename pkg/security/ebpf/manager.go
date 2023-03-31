@@ -61,3 +61,10 @@ func NewRuntimeSecurityManager(supportsRingBuffers bool) *manager.Manager {
 	}
 	return manager
 }
+
+// NewRuntimeSecurityBTFManager returns a new instance of the BTF runtime security module manager
+func NewRuntimeSecurityBTFManager(manager *manager.Manager) (*manager.Manager, manager.Options) {
+	btfOptions := NewDefaultOptions()
+
+	// add shared maps between the manager and
+}

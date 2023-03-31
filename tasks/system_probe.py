@@ -136,10 +136,11 @@ def ninja_ebpf_co_re_program(nw, infile, outfile, variables=None):
     )
 
 
-def ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release):
+def ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release, co_re_build_dir):
     security_agent_c_dir = os.path.join("pkg", "security", "ebpf", "c")
     security_agent_prebuilt_dir_include = os.path.join(security_agent_c_dir, "include")
     security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
+    security_agent_core_dir = os.path.join(security_agent_c_dir, "co-re")
 
     kernel_headers = get_linux_header_dirs(
         kernel_release=kernel_release, minimal_kernel_release=CWS_PREBUILT_MINIMUM_KERNEL_VERSION
@@ -190,6 +191,12 @@ def ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release):
         },
     )
     outfiles.append(offset_guesser_outfile)
+
+    ## CO-RE
+    co_re_infile = os.path.join(security_agent_core_dir, "probe.c")
+    co_re_outfile = os.path.join(co_re_build_dir, f"runtime-security-core.o")
+    ninja_ebpf_co_re_program(nw, co_re_infile, co_re_outfile, {"flags": security_flags})
+    outfiles.append(co_re_outfile)
 
     nw.build(rule="phony", inputs=outfiles, outputs=["cws"])
 
@@ -391,7 +398,7 @@ def ninja_generate(
             ninja_define_ebpf_compiler(nw, strip_object_files, kernel_release, with_unit_test)
             ninja_define_co_re_compiler(nw)
             ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir)
-            ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release)
+            ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release, co_re_build_dir)
             ninja_container_integrations_ebpf_programs(nw, co_re_build_dir)
             ninja_runtime_compilation_files(nw)
 
