@@ -51,7 +51,6 @@ func (p *ProcessResolver) AddNewProcessEntry(pid Pid, file string, commandLine s
 	e.Process.PIDContext.Pid = uint32(e.Pid)
 	e.Process.Argv0 = file
 	e.Process.Argv = strings.Split(commandLine, " ")
-	
 
 	// where do we put the file and the command line?
 	p.maplock.Lock()
