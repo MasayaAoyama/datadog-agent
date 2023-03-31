@@ -14,14 +14,14 @@ import (
 	"regexp"
 	"runtime"
 	"sync"
-	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/gopsutil/process"
 	"github.com/vishvananda/netlink"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/gopsutil/process"
 )
 
 const (
@@ -48,9 +48,9 @@ var (
 type ProcessMonitor struct {
 	m        sync.Mutex
 	wg       sync.WaitGroup
-	refcount atomic.Int32
+	refcount *atomic.Int32
 
-	isInitialized bool
+	isInitialized *atomic.Bool
 
 	// chan push done by vishvananda/netlink library
 	events chan netlink.ProcEvent
@@ -122,10 +122,11 @@ type ProcessCallback struct {
 func GetProcessMonitor() *ProcessMonitor {
 	once.Do(func() {
 		processMonitor = &ProcessMonitor{
-			isInitialized:      false,
 			procEventCallbacks: make(map[ProcessEventType][]*ProcessCallback),
 			runningPids:        make(map[uint32]interface{}),
 		}
+		processMonitor.refcount = atomic.NewInt32(0)
+		processMonitor.isInitialized = atomic.NewBool(false)
 	})
 
 	return processMonitor
@@ -206,8 +207,8 @@ func (pm *ProcessMonitor) Initialize() error {
 	pm.m.Lock()
 	defer pm.m.Unlock()
 
-	pm.refcount.Add(1)
-	if pm.isInitialized {
+	pm.refcount.Inc()
+	if pm.isInitialized.Load() {
 		return nil
 	}
 
@@ -245,7 +246,7 @@ func (pm *ProcessMonitor) Initialize() error {
 		defer func() {
 			logTicker.Stop()
 			close(pm.callbackRunner)
-			pm.isInitialized = false
+			pm.isInitialized.Store(false)
 			pm.wg.Done()
 			log.Info("netlink process monitor ended")
 		}()
@@ -258,12 +259,11 @@ func (pm *ProcessMonitor) Initialize() error {
 				if !ok {
 					return
 				}
-				pm.m.Lock()
-				if !pm.isInitialized {
-					pm.m.Unlock()
+				if !pm.isInitialized.Load() {
 					continue
 				}
 
+				pm.m.Lock()
 				pm.eventCount += 1
 
 				switch ev := event.Msg.(type) {
@@ -307,7 +307,7 @@ func (pm *ProcessMonitor) Initialize() error {
 		return fmt.Errorf("process monitor init, scanning all process failed %s", err)
 	}
 	// enable events to be processed
-	pm.isInitialized = true
+	pm.isInitialized.Store(true)
 	return nil
 }
 
@@ -368,7 +368,7 @@ func (pm *ProcessMonitor) Stop() {
 	if pm.refcount.Load() == 0 {
 		return
 	}
-	if pm.refcount.Add(-1) > 0 {
+	if pm.refcount.Dec() > 0 {
 		return
 	}
 	if pm.done != nil {
