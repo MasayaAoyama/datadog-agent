@@ -185,6 +185,11 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts) map[string]manager.Ma
 			MaxEntries: getMaxEntries(numCPU, minPathnamesEntries, maxPathnamesEntries),
 			EditorFlag: manager.EditMaxEntries,
 		}
+	} else {
+		editors["pathnames"] = manager.MapSpecEditor{
+			MaxEntries: 1,
+			EditorFlag: manager.EditMaxEntries,
+		}
 	}
 
 	if opts.TracedCgroupSize > 0 {
