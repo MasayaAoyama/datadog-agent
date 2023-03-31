@@ -121,41 +121,29 @@ func (p *SecurityProfile) findProfileProcessNodes(pc *model.ProcessContext) []*d
 }
 
 func findFileInNode(node *dump.ProcessActivityNode, file *model.FileEvent) bool {
+	childs := node.Files
+	var child *dump.FileActivityNode = nil
+	var ok bool
 	currentPath := file.PathnameStr
-	parent, nextParentIndex := dump.ExtractFirstParent(currentPath)
-	currentFan, ok := node.Files[parent] // TODO: handle patterns
-	if !ok {
-		return false
-	}
-	if nextParentIndex == 0 {
-		if currentFan.Name == file.BasenameStr {
-			// TODO: match syscall/mode/flags
-			return true
-		} else {
-			return false
-		}
-	}
-	currentPath = currentPath[nextParentIndex:]
-
 	for {
-		parent, nextParentIndex = dump.ExtractFirstParent(currentPath)
+		parent, nextParentIndex := dump.ExtractFirstParent(currentPath)
 		if nextParentIndex == 0 {
-			if currentFan.Name == file.BasenameStr {
-				// TODO: match syscall/mode/flags
+			if child != nil && child.Name == file.BasenameStr {
+				// TODO: redo match mode/flags, once stored values are working as expected
+				// return uint32(file.Flags) == currentFan.Open.Flags&uint32(file.Flags) &&
+				// 	uint32(file.Mode) == currentFan.Open.Mode&uint32(file.Mode)
 				return true
 			} else {
 				return false
 			}
-			break
 		}
-		child, ok := currentFan.Children[parent] // TODO: handle patterns
+		child, ok = childs[parent] // TODO: handle patterns
 		if !ok {
 			return false
 		}
-		currentFan = child
+		childs = child.Children
 		currentPath = currentPath[nextParentIndex:]
 	}
-
 	return false
 }
 

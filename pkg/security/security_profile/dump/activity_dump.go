@@ -1610,7 +1610,6 @@ func (fan *FileActivityNode) getNodeLabel() string {
 	return label
 }
 
-// TODO: append seen syscalls/mode/flags instead of crushing them
 func (fan *FileActivityNode) enrichFromEvent(event *model.Event) {
 	if event == nil {
 		return
@@ -1623,10 +1622,15 @@ func (fan *FileActivityNode) enrichFromEvent(event *model.Event) {
 
 	switch event.GetEventType() {
 	case model.FileOpenEventType:
-		fan.Open = &OpenNode{
-			SyscallEvent: event.Open.SyscallEvent,
-			Flags:        event.Open.Flags,
-			Mode:         event.Open.Mode,
+		if fan.Open == nil {
+			fan.Open = &OpenNode{
+				SyscallEvent: event.Open.SyscallEvent,
+				Flags:        event.Open.Flags,
+				Mode:         event.Open.Mode,
+			}
+		} else {
+			fan.Open.Flags |= event.Open.Flags
+			fan.Open.Mode |= event.Open.Mode
 		}
 	}
 }
