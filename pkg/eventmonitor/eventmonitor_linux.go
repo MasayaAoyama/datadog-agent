@@ -27,7 +27,8 @@ func (m *EventMonitor) getListener() (net.Listener, error) {
 
 func (m *EventMonitor) init() error {
 	// force socket cleanup of previous socket not cleanup
-	return os.Remove(m.Config.SocketPath)
+	os.Remove(m.Config.SocketPath)
+	return nil
 }
 
 func (m *EventMonitor) cleanup() {
