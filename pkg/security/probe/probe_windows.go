@@ -36,7 +36,7 @@ func (p *Probe) Init() error {
 
 	pm, err := procmon.NewWinProcMon(p.onStart, p.onStop)
 	if err != nil {
-		return nil
+		return err
 	}
 	p.pm = pm
 
