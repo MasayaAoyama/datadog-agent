@@ -243,9 +243,161 @@ func (p *Probe) VerifyEnvironment() *multierror.Error {
 	return err
 }
 
+func (p *Probe) setManagerOptions() error {
+	numCPU, err := utils.NumCPU()
+	if err != nil {
+		return fmt.Errorf("failed to parse CPU count: %w", err)
+	}
+
+	useRingBuffers := p.UseRingBuffers()
+	useMmapableMaps := p.kernelVersion.HaveMmapableMaps()
+
+	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(numCPU, probes.MapSpecEditorOpts{
+		TracedCgroupSize:      p.Config.RuntimeSecurity.ActivityDumpTracedCgroupsCount,
+		UseRingBuffers:        useRingBuffers,
+		UseMmapableMaps:       useMmapableMaps,
+		RingBufferSize:        uint32(p.Config.Probe.EventStreamBufferSize),
+		PathResolutionEnabled: p.Opts.PathResolutionEnabled,
+	})
+
+	if p.Config.RuntimeSecurity.ActivityDumpEnabled {
+		for _, e := range p.Config.RuntimeSecurity.ActivityDumpTracedEventTypes {
+			if e == model.SyscallsEventType {
+				// Add syscall monitor probes
+				p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
+				break
+			}
+		}
+	}
+
+	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, constantfetch.CreateConstantEditors(p.constantOffsets)...)
+
+	areCGroupADsEnabled := p.Config.RuntimeSecurity.ActivityDumpTracedCgroupsCount > 0
+
+	// Add global constant editors
+	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
+		manager.ConstantEditor{
+			Name:  "runtime_pid",
+			Value: uint64(utils.Getpid()),
+		},
+		manager.ConstantEditor{
+			Name:  "do_fork_input",
+			Value: getDoForkInput(p.kernelVersion),
+		},
+		manager.ConstantEditor{
+			Name:  "mount_id_offset",
+			Value: mount.GetMountIDOffset(p.kernelVersion),
+		},
+		manager.ConstantEditor{
+			Name:  "getattr2",
+			Value: getAttr2(p.kernelVersion),
+		},
+		manager.ConstantEditor{
+			Name:  "vfs_unlink_dentry_position",
+			Value: mount.GetVFSLinkDentryPosition(p.kernelVersion),
+		},
+		manager.ConstantEditor{
+			Name:  "vfs_mkdir_dentry_position",
+			Value: mount.GetVFSMKDirDentryPosition(p.kernelVersion),
+		},
+		manager.ConstantEditor{
+			Name:  "vfs_link_target_dentry_position",
+			Value: mount.GetVFSLinkTargetDentryPosition(p.kernelVersion),
+		},
+		manager.ConstantEditor{
+			Name:  "vfs_setxattr_dentry_position",
+			Value: mount.GetVFSSetxattrDentryPosition(p.kernelVersion),
+		},
+		manager.ConstantEditor{
+			Name:  "vfs_removexattr_dentry_position",
+			Value: mount.GetVFSRemovexattrDentryPosition(p.kernelVersion),
+		},
+		manager.ConstantEditor{
+			Name:  "vfs_rename_input_type",
+			Value: mount.GetVFSRenameInputType(p.kernelVersion),
+		},
+		manager.ConstantEditor{
+			Name:  "check_helper_call_input",
+			Value: getCheckHelperCallInputType(p.kernelVersion),
+		},
+		manager.ConstantEditor{
+			Name:  "cgroup_activity_dumps_enabled",
+			Value: utils.BoolTouint64(p.Config.RuntimeSecurity.ActivityDumpEnabled && areCGroupADsEnabled),
+		},
+		manager.ConstantEditor{
+			Name:  "net_struct_type",
+			Value: getNetStructType(p.kernelVersion),
+		},
+		manager.ConstantEditor{
+			Name:  "syscall_monitor_event_period",
+			Value: uint64(p.Config.RuntimeSecurity.ActivityDumpSyscallMonitorPeriod.Nanoseconds()),
+		},
+	)
+
+	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)
+	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, getCGroupWriteConstants())
+
+	// if we are using tracepoints to probe syscall exits, i.e. if we are using an old kernel version (< 4.12)
+	// we need to use raw_syscall tracepoints for exits, as syscall are not trace when running an ia32 userspace
+	// process
+	if probes.ShouldUseSyscallExitTracepoints() {
+		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
+			manager.ConstantEditor{
+				Name:  "tracepoint_raw_syscall_fallback",
+				Value: utils.BoolTouint64(true),
+			},
+		)
+	}
+
+	if useRingBuffers {
+		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
+			manager.ConstantEditor{
+				Name:  "use_ring_buffer",
+				Value: utils.BoolTouint64(true),
+			},
+		)
+	}
+
+	if p.kernelVersion.HavePIDLinkStruct() {
+		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
+			manager.ConstantEditor{
+				Name:  "kernel_has_pid_link_struct",
+				Value: utils.BoolTouint64(true),
+			},
+		)
+	}
+
+	if p.kernelVersion.HaveLegacyPipeInodeInfoStruct() {
+		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
+			manager.ConstantEditor{
+				Name:  "kernel_has_legacy_pipe_inode_info",
+				Value: utils.BoolTouint64(true),
+			},
+		)
+	}
+
+	// tail calls
+	p.managerOptions.TailCallRouter = probes.AllTailRoutes(p.Config.Probe.ERPCDentryResolutionEnabled, p.Config.Probe.NetworkEnabled, useMmapableMaps)
+	if !p.Config.Probe.ERPCDentryResolutionEnabled || useMmapableMaps {
+		// exclude the programs that use the bpf_probe_write_user helper
+		p.managerOptions.ExcludedFunctions = probes.AllBPFProbeWriteUserProgramFunctions()
+	}
+
+	if !p.Config.Probe.NetworkEnabled {
+		// prevent all TC classifiers from loading
+		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetAllTCProgramFunctions()...)
+	}
+
+	return nil
+}
+
 // Init initializes the probe
 func (p *Probe) Init() error {
 	p.startTime = time.Now()
+
+	if err := p.setManagerOptions(); err != nil {
+		return err
+	}
 
 	useSyscallWrapper, err := ebpf.IsSyscallWrapperRequired()
 	if err != nil {
@@ -1320,7 +1472,6 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	}
 
 	useRingBuffers := p.UseRingBuffers()
-	useMmapableMaps := p.kernelVersion.HaveMmapableMaps()
 
 	p.Manager = ebpf.NewRuntimeSecurityManager(useRingBuffers)
 
@@ -1328,30 +1479,8 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 
 	p.monitor = NewMonitor(p)
 
-	numCPU, err := utils.NumCPU()
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse CPU count: %w", err)
-	}
-	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(
-		numCPU,
-		config.RuntimeSecurity.ActivityDumpTracedCgroupsCount,
-		useMmapableMaps,
-		useRingBuffers,
-		uint32(p.Config.Probe.EventStreamBufferSize),
-	)
-
 	if !p.Config.Probe.EnableKernelFilters {
 		seclog.Warnf("Forcing in-kernel filter policy to `pass`: filtering not enabled")
-	}
-
-	if config.RuntimeSecurity.ActivityDumpEnabled {
-		for _, e := range config.RuntimeSecurity.ActivityDumpTracedEventTypes {
-			if e == model.SyscallsEventType {
-				// Add syscall monitor probes
-				p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
-				break
-			}
-		}
 	}
 
 	p.constantOffsets, err = p.GetOffsetConstants()
@@ -1363,124 +1492,6 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	// runtime compilation, BTF parsing...
 	// let's ensure the GC has run at this point before doing further memory intensive stuff
 	runtime.GC()
-
-	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, constantfetch.CreateConstantEditors(p.constantOffsets)...)
-
-	areCGroupADsEnabled := config.RuntimeSecurity.ActivityDumpTracedCgroupsCount > 0
-
-	// Add global constant editors
-	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
-		manager.ConstantEditor{
-			Name:  "runtime_pid",
-			Value: uint64(utils.Getpid()),
-		},
-		manager.ConstantEditor{
-			Name:  "do_fork_input",
-			Value: getDoForkInput(p.kernelVersion),
-		},
-		manager.ConstantEditor{
-			Name:  "mount_id_offset",
-			Value: mount.GetMountIDOffset(p.kernelVersion),
-		},
-		manager.ConstantEditor{
-			Name:  "getattr2",
-			Value: getAttr2(p.kernelVersion),
-		},
-		manager.ConstantEditor{
-			Name:  "vfs_unlink_dentry_position",
-			Value: mount.GetVFSLinkDentryPosition(p.kernelVersion),
-		},
-		manager.ConstantEditor{
-			Name:  "vfs_mkdir_dentry_position",
-			Value: mount.GetVFSMKDirDentryPosition(p.kernelVersion),
-		},
-		manager.ConstantEditor{
-			Name:  "vfs_link_target_dentry_position",
-			Value: mount.GetVFSLinkTargetDentryPosition(p.kernelVersion),
-		},
-		manager.ConstantEditor{
-			Name:  "vfs_setxattr_dentry_position",
-			Value: mount.GetVFSSetxattrDentryPosition(p.kernelVersion),
-		},
-		manager.ConstantEditor{
-			Name:  "vfs_removexattr_dentry_position",
-			Value: mount.GetVFSRemovexattrDentryPosition(p.kernelVersion),
-		},
-		manager.ConstantEditor{
-			Name:  "vfs_rename_input_type",
-			Value: mount.GetVFSRenameInputType(p.kernelVersion),
-		},
-		manager.ConstantEditor{
-			Name:  "check_helper_call_input",
-			Value: getCheckHelperCallInputType(p.kernelVersion),
-		},
-		manager.ConstantEditor{
-			Name:  "cgroup_activity_dumps_enabled",
-			Value: utils.BoolTouint64(config.RuntimeSecurity.ActivityDumpEnabled && areCGroupADsEnabled),
-		},
-		manager.ConstantEditor{
-			Name:  "net_struct_type",
-			Value: getNetStructType(p.kernelVersion),
-		},
-		manager.ConstantEditor{
-			Name:  "syscall_monitor_event_period",
-			Value: uint64(config.RuntimeSecurity.ActivityDumpSyscallMonitorPeriod.Nanoseconds()),
-		},
-	)
-
-	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)
-	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, getCGroupWriteConstants())
-
-	// if we are using tracepoints to probe syscall exits, i.e. if we are using an old kernel version (< 4.12)
-	// we need to use raw_syscall tracepoints for exits, as syscall are not trace when running an ia32 userspace
-	// process
-	if probes.ShouldUseSyscallExitTracepoints() {
-		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
-			manager.ConstantEditor{
-				Name:  "tracepoint_raw_syscall_fallback",
-				Value: utils.BoolTouint64(true),
-			},
-		)
-	}
-
-	if useRingBuffers {
-		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
-			manager.ConstantEditor{
-				Name:  "use_ring_buffer",
-				Value: utils.BoolTouint64(true),
-			},
-		)
-	}
-
-	if p.kernelVersion.HavePIDLinkStruct() {
-		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
-			manager.ConstantEditor{
-				Name:  "kernel_has_pid_link_struct",
-				Value: utils.BoolTouint64(true),
-			},
-		)
-	}
-
-	if p.kernelVersion.HaveLegacyPipeInodeInfoStruct() {
-		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
-			manager.ConstantEditor{
-				Name:  "kernel_has_legacy_pipe_inode_info",
-				Value: utils.BoolTouint64(true),
-			},
-		)
-	}
-
-	// tail calls
-	p.managerOptions.TailCallRouter = probes.AllTailRoutes(p.Config.Probe.ERPCDentryResolutionEnabled, p.Config.Probe.NetworkEnabled, useMmapableMaps)
-	if !p.Config.Probe.ERPCDentryResolutionEnabled || useMmapableMaps {
-		// exclude the programs that use the bpf_probe_write_user helper
-		p.managerOptions.ExcludedFunctions = probes.AllBPFProbeWriteUserProgramFunctions()
-	}
-
-	if !p.Config.Probe.NetworkEnabled {
-		// prevent all TC classifiers from loading
-		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetAllTCProgramFunctions()...)
-	}
 
 	p.scrubber = procutil.NewDefaultDataScrubber()
 	p.scrubber.AddCustomSensitiveWords(config.Probe.CustomSensitiveWords)

@@ -18,6 +18,14 @@ type Opts struct {
 	DontDiscardRuntime bool
 	// StatsdClient to be used for probe stats
 	StatsdClient statsd.ClientInterface
+	// PathResolutionEnabled defines if the path resolution is enabled
+	PathResolutionEnabled bool
+}
+
+// WithPathResolution enabled the path resolution
+func (o *Opts) WithPathResolution() *Opts {
+	o.PathResolutionEnabled = true
+	return o
 }
 
 func (o *Opts) normalize() {

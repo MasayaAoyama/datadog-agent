@@ -30,7 +30,7 @@ struct bpf_map_def SEC("maps/pathnames") pathnames = {
     .type = BPF_MAP_TYPE_LRU_HASH,
     .key_size = sizeof(struct path_key_t),
     .value_size = sizeof(struct path_leaf_t),
-    .max_entries = 64000,
+    .max_entries = 0, // edited
 };
 
 #define DR_NO_CALLBACK -1
