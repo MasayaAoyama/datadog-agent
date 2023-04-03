@@ -524,7 +524,7 @@ func (rs *RuleSet) runRuleActions(ctx *eval.Context, rule *Rule) error {
 }
 
 // Evaluate the specified event against the set of rules
-func (rs *RuleSet) Evaluate(event eval.Event) bool {
+func (rs *RuleSet) Evaluate(event eval.Event, SecurityProfileAutoSuppression bool) bool {
 	ctx := rs.pool.Get(event)
 	defer rs.pool.Put(ctx)
 	ev := event.(*model.Event)
@@ -538,7 +538,7 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	}
 
 	// if an event is already validated through an active profile, there is no need to try to match rules
-	if ev.ProfileState != model.MatchedAndPresent {
+	if SecurityProfileAutoSuppression == false || ev.ProfileState != model.MatchedAndPresent {
 		// Since logger is an interface this call cannot be inlined, requiring to pass the trace call arguments
 		// through the heap. To improve this situation we first check if we actually need to call the function.
 		if rs.logger.IsTracing() {

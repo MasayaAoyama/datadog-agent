@@ -164,6 +164,13 @@ type Config struct {
 	SecurityProfileWatchDir bool
 	// SecurityProfileCacheSize defines the count of Security Profiles held in cache
 	SecurityProfileCacheSize int
+	// SecurityProfileAutoSuppression defines if events present on active profiles should be auto-suppressed or not
+	SecurityProfileAutoSuppression bool
+	// SecurityProfileAnomalyDetection defines if events not present in active profiles should triggers an anomaly detection event or not
+	SecurityProfileAnomalyDetection bool
+	// [Experimental] SecurityProfileFilesBestEffort defines if we want to sent anomaly detection events for files events sawn on userspace
+	// TODO: remove it once we got the filtering kernel side
+	SecurityProfileFilesBestEffort bool
 
 	// RuntimeMonitor defines if the Go runtime and system monitor should be enabled
 	RuntimeMonitor bool
@@ -309,10 +316,13 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		SBOMResolverWorkloadsCacheSize: coreconfig.SystemProbe.GetInt("runtime_security_config.sbom.workloads_cache_size"),
 
 		// security profiles
-		SecurityProfileEnabled:   coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.enabled"),
-		SecurityProfileDir:       coreconfig.SystemProbe.GetString("runtime_security_config.security_profile.dir"),
-		SecurityProfileWatchDir:  coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.watch_dir"),
-		SecurityProfileCacheSize: coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.cache_size"),
+		SecurityProfileEnabled:          coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.enabled"),
+		SecurityProfileDir:              coreconfig.SystemProbe.GetString("runtime_security_config.security_profile.dir"),
+		SecurityProfileWatchDir:         coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.watch_dir"),
+		SecurityProfileCacheSize:        coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.cache_size"),
+		SecurityProfileAutoSuppression:  coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.auto_suppression"),
+		SecurityProfileAnomalyDetection: coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.anomaly_detection"),
+		SecurityProfileFilesBestEffort:  coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.files_best_effort"),
 	}
 
 	c.NetworkProcessEventMonitoringEnabled = c.NetworkProcessEventMonitoringEnabled && cfg.ModuleIsEnabled(config.NetworkTracerModule)

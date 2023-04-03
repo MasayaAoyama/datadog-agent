@@ -371,6 +371,9 @@ func (m *SecurityProfileManager) LookupEventOnProfiles(event *model.Event) {
 	if event.ContainerContext.ID == "" || len(event.ContainerContext.Tags) < 1 {
 		return
 	}
+	if event.GetEventType() == model.FileOpenEventType && !m.config.SecurityProfileFilesBestEffort {
+		return
+	}
 
 	// if time.Now()-event.ContainerContext.CreatedAt < time.Second*30 {
 	// 	// TODO: put the event in a cache to be pop back after x sec to have a chance to

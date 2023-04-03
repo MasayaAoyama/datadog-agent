@@ -325,7 +325,7 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 
 	// filter out event if already present on a profile
 	event.ProfileState = model.NoProfileMatched
-	if p.Config.SecurityProfileEnabled {
+	if p.Config.SecurityProfileEnabled && (p.Config.SecurityProfileAutoSuppression || p.Config.SecurityProfileAnomalyDetection) {
 		p.monitor.securityProfileManager.LookupEventOnProfiles(event)
 	}
 
@@ -339,11 +339,13 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 		handler.HandleEvent(event)
 	}
 
-	if event.ProfileState == model.MatchedAndAbsent && event.GetEventType() != model.SyscallsEventType {
+	if p.Config.SecurityProfileAnomalyDetection && event.ProfileState == model.MatchedAndAbsent && event.GetEventType() != model.SyscallsEventType {
 		// TODO: send an anomaly detection event and remove those debugs logs
 		if event.GetEventType() == model.FileOpenEventType {
-			fmt.Printf("FILE Event not found in profile -> generate anomaly detection ! %s @ %+v for %s\n",
-				event.ProcessContext.Comm, event.GetEventType().String(), event.Open.File.PathnameStr)
+			if p.Config.SecurityProfileFilesBestEffort {
+				fmt.Printf("FILE Event not found in profile -> generate anomaly detection ! %s @ %+v for %s\n",
+					event.ProcessContext.Comm, event.GetEventType().String(), event.Open.File.PathnameStr)
+			}
 		} else if event.GetEventType() == model.DNSEventType {
 			fmt.Printf("DNS Event not found in profile -> generate anomaly detection ! %s @ %+v for %s (%d)\n",
 				event.ProcessContext.Comm, event.GetEventType().String(), event.DNS.Name, event.DNS.Type)

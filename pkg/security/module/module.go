@@ -442,7 +442,7 @@ func (m *Module) HandleEvent(event *model.Event) {
 	}
 
 	if ruleSet := m.GetRuleSet(); ruleSet != nil {
-		ruleSet.Evaluate(event)
+		ruleSet.Evaluate(event, m.config.SecurityProfileAutoSuppression)
 	}
 }
 
