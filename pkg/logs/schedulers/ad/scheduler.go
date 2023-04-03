@@ -60,6 +60,7 @@ func (s *Scheduler) Stop() {
 // An entity represents a unique identifier for a process that be reused to query logs.
 func (s *Scheduler) Schedule(configs []integration.Config) {
 	for _, config := range configs {
+		log.Debugf("zendesk1144231 | config=%+v", config)
 		if !config.IsLogConfig() {
 			continue
 		}

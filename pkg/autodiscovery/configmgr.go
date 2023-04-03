@@ -30,6 +30,7 @@ type configChanges struct {
 
 // scheduleConfig adds a config to `schedule`
 func (c *configChanges) scheduleConfig(config integration.Config) {
+	log.Debugf("zendesk1144231 | config=%+v", config)
 	c.schedule = append(c.schedule, config)
 }
 
