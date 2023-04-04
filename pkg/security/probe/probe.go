@@ -53,7 +53,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -121,7 +121,7 @@ type Probe struct {
 	eventStream EventStream
 
 	// ActivityDumps section
-	activityDumpHandler dump.ActivityDumpHandler
+	profileHandler *security_profile.ProfileHandler
 
 	// Approvers / discarders section
 	Erpc                               *erpc.ERPC
@@ -293,8 +293,9 @@ func (p *Probe) Init() error {
 		return err
 	}
 
-	if p.monitor.activityDumpManager != nil {
-		p.monitor.activityDumpManager.AddActivityDumpHandler(p.activityDumpHandler)
+	err = p.profileHandler.Init(p.Manager, p.resolvers, p.kernelVersion, p.scrubber, func() *model.Event { return NewEvent(p.fieldHandlers) })
+	if err != nil {
+		return err
 	}
 
 	p.eventStream.SetMonitor(p.monitor.perfBufferMonitor)
@@ -315,6 +316,10 @@ func (p *Probe) Setup() error {
 
 	p.applyDefaultFilterPolicies()
 
+	if err := p.profileHandler.Start(p.ctx, &p.wg); err != nil {
+		return err
+	}
+
 	return p.monitor.Start(p.ctx, &p.wg)
 }
 
@@ -329,11 +334,6 @@ func (p *Probe) Start() error {
 		model.ExecEventType.String(),
 		model.ExecEventType.String(),
 	})
-}
-
-// AddActivityDumpHandler set the probe activity dump handler
-func (p *Probe) AddActivityDumpHandler(handler dump.ActivityDumpHandler) {
-	p.activityDumpHandler = handler
 }
 
 // AddEventHandler set the probe event handler
@@ -424,6 +424,21 @@ func (p *Probe) SendStats() error {
 // GetMonitor returns the monitor of the probe
 func (p *Probe) GetMonitor() *Monitor {
 	return p.monitor
+}
+
+func (p *Probe) onPerfEventLost(perfMapName string, perEvent map[string]uint64) {
+	p.DispatchCustomEvent(
+		NewEventLostWriteEvent(perfMapName, perEvent),
+	)
+
+	// snapshot traced cgroups if a CgroupTracing event was lost
+	if p.Config.RuntimeSecurity.IsActivityDumpEnabled() && perEvent[model.CgroupTracingEventType.String()] > 0 {
+		p.profileHandler.GetActivityDumpManager().SnapshotTracedCgroups()
+	}
+}
+
+func (p *Probe) GetProfileHandler() *security_profile.ProfileHandler {
+	return p.profileHandler
 }
 
 func (p *Probe) zeroEvent() *model.Event {
@@ -527,7 +542,9 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			return
 		}
 
-		p.monitor.activityDumpManager.HandleCgroupTracingEvent(&event.CgroupTracing)
+		if adm := p.profileHandler.GetActivityDumpManager(); adm != nil {
+			adm.HandleCgroupTracingEvent(&event.CgroupTracing)
+		}
 		return
 	case model.UnshareMountNsEventType:
 		if _, err = event.UnshareMountNS.UnmarshalBinary(data[offset:]); err != nil {
@@ -965,17 +982,6 @@ func (p *Probe) SetApprovers(eventType eval.EventType, approvers rules.Approvers
 	return nil
 }
 
-func (p *Probe) isNeededForActivityDump(eventType eval.EventType) bool {
-	if p.Config.RuntimeSecurity.ActivityDumpEnabled {
-		for _, e := range p.monitor.GetActivityDumpTracedEventTypes() {
-			if e.String() == eventType {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 func (p *Probe) validEventTypeForConfig(eventType string) bool {
 	if eventType == "dns" && !p.Config.Probe.NetworkEnabled {
 		return false
@@ -1005,7 +1011,7 @@ func (p *Probe) updateProbes(ruleEventTypes []eval.EventType) error {
 
 	// extract probe to activate per the event types
 	for eventType, selectors := range probes.GetSelectorsPerEventType() {
-		if (eventType == "*" || slices.Contains(eventTypes, eventType) || p.isNeededForActivityDump(eventType)) && p.validEventTypeForConfig(eventType) {
+		if (eventType == "*" || slices.Contains(eventTypes, eventType) || p.profileHandler.IsNeededForActivityDump(eventType)) && p.validEventTypeForConfig(eventType) {
 			activatedProbes = append(activatedProbes, selectors...)
 		}
 	}
@@ -1013,13 +1019,8 @@ func (p *Probe) updateProbes(ruleEventTypes []eval.EventType) error {
 	activatedProbes = append(activatedProbes, p.resolvers.TCResolver.SelectTCProbes())
 
 	// ActivityDumps
-	if p.Config.RuntimeSecurity.ActivityDumpEnabled {
-		for _, e := range p.monitor.GetActivityDumpTracedEventTypes() {
-			if e == model.SyscallsEventType {
-				activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
-				break
-			}
-		}
+	if p.profileHandler.IsSyscallEventTypeEnabled() {
+		activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
 	}
 
 	// Print the list of unique probe identification IDs that are registered
@@ -1337,6 +1338,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),
 		isRuntimeDiscarded:   !opts.DontDiscardRuntime,
 		event:                &model.Event{},
+		profileHandler:       security_profile.NewProfileHandler(config.RuntimeSecurity, opts.StatsdClient),
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
@@ -1701,14 +1703,6 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 
 func (p *Probe) IsNetworkEnabled() bool {
 	return p.Config.Probe.NetworkEnabled
-}
-
-func (p *Probe) IsActivityDumpEnabled() bool {
-	return p.Config.RuntimeSecurity.ActivityDumpEnabled
-}
-
-func (p *Probe) IsActivityDumpTagRulesEnabled() bool {
-	return p.Config.RuntimeSecurity.ActivityDumpTagRulesEnabled
 }
 
 func (p *Probe) StatsPollingInterval() time.Duration {
