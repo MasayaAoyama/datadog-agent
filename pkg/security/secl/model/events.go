@@ -89,6 +89,17 @@ const (
 	UnshareMountNsEventType
 	// SyscallsEventType Syscalls event
 	SyscallsEventType
+	// AnomalyDetectionSyscallEventType Anomaly Detection Syscall event
+	AnomalyDetectionSyscallEventType
+	// AnomalyDetectionOpenEventType Anomaly Detection Open event
+	AnomalyDetectionOpenEventType
+	// AnomalyDetectionProcessEventType Anomaly Detection Process event
+	AnomalyDetectionProcessEventType
+	// AnomalyDetectionDNSEventType Anomaly Detection DNS event
+	AnomalyDetectionDNSEventType
+	// AnomalyDetectionBindEventType Anomaly Detection Bind event
+	AnomalyDetectionBindEventType
+
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -194,6 +205,16 @@ func (t EventType) String() string {
 		return "unshare_mntns"
 	case SyscallsEventType:
 		return "syscalls"
+	case AnomalyDetectionSyscallEventType:
+		return "anomaly_detection_syscall"
+	case AnomalyDetectionProcessEventType:
+		return "anomaly_detection_process"
+	case AnomalyDetectionDNSEventType:
+		return "anomaly_detection_dns"
+	case AnomalyDetectionOpenEventType:
+		return "anomaly_detection_open"
+	case AnomalyDetectionBindEventType:
+		return "anomaly_detection_bind"
 
 	case CustomLostReadEventType:
 		return "lost_events_read"

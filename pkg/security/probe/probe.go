@@ -91,12 +91,16 @@ type Probe struct {
 	cancelFnc      context.CancelFunc
 	wg             sync.WaitGroup
 	// Events section
-	handlers      [model.MaxAllEventType][]EventHandler
-	monitor       *Monitor
-	resolvers     *resolvers.Resolvers
-	event         *model.Event
-	fieldHandlers *FieldHandlers
-	scrubber      *procutil.DataScrubber
+	handlers                           [model.MaxAllEventType][]EventHandler
+	monitor                            *Monitor
+	resolvers                          *resolvers.Resolvers
+	event                              *model.Event
+	fieldHandlers                      *FieldHandlers
+	scrubber                           *procutil.DataScrubber
+	anomalyDetectionRateLimiterProcess *rate.Limiter
+	anomalyDetectionRateLimiterOpen    *rate.Limiter
+	anomalyDetectionRateLimiterBind    *rate.Limiter
+	anomalyDetectionRateLimiterDNS     *rate.Limiter
 
 	// Ring
 	eventStream EventStream
@@ -339,24 +343,59 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 		handler.HandleEvent(event)
 	}
 
+	// TODO: split this func
 	if p.Config.SecurityProfileAnomalyDetection && event.ProfileState == model.MatchedAndAbsent && event.GetEventType() != model.SyscallsEventType {
-		// TODO: send an anomaly detection event and remove those debugs logs
+		p.monitor.securityProfileManager.FillProfileContextFromContainerID(event.ProcessContext.ContainerID, &event.SecurityProfileContext)
 		if event.GetEventType() == model.FileOpenEventType {
 			if p.Config.SecurityProfileFilesBestEffort {
 				fmt.Printf("FILE Event not found in profile -> generate anomaly detection ! %s @ %+v for %s\n",
 					event.ProcessContext.Comm, event.GetEventType().String(), event.Open.File.PathnameStr)
+				if p.anomalyDetectionRateLimiterOpen.Allow() {
+					p.DispatchCustomEvent(
+						events.NewCustomRule(events.AnomalyDetectionRuleID),
+						events.NewCustomEvent(model.AnomalyDetectionOpenEventType, serializers.NewEventSerializer(event, p.resolvers)),
+					)
+				} else {
+					fmt.Printf("  -> Event rate limited\n")
+				}
 			}
 		} else if event.GetEventType() == model.DNSEventType {
 			fmt.Printf("DNS Event not found in profile -> generate anomaly detection ! %s @ %+v for %s (%d)\n",
 				event.ProcessContext.Comm, event.GetEventType().String(), event.DNS.Name, event.DNS.Type)
+			if p.anomalyDetectionRateLimiterDNS.Allow() {
+				p.DispatchCustomEvent(
+					events.NewCustomRule(events.AnomalyDetectionRuleID),
+					events.NewCustomEvent(model.AnomalyDetectionDNSEventType, serializers.NewEventSerializer(event, p.resolvers)),
+				)
+			} else {
+				fmt.Printf("  -> Event rate limited\n")
+			}
 		} else if event.GetEventType() == model.BindEventType {
 			fmt.Printf("BIND Event not found in profile -> generate anomaly detection ! %s @ %+v for %s\n",
 				event.ProcessContext.Comm, event.GetEventType().String(), event.DNS.Name)
+			if p.anomalyDetectionRateLimiterBind.Allow() {
+				p.DispatchCustomEvent(
+					events.NewCustomRule(events.AnomalyDetectionRuleID),
+					events.NewCustomEvent(model.AnomalyDetectionBindEventType, serializers.NewEventSerializer(event, p.resolvers)),
+				)
+			} else {
+				fmt.Printf("  -> Event rate limited\n")
+			}
+		} else if event.GetEventType() == model.ExecEventType {
+			fmt.Printf("EXEC Event not found in profile -> generate anomaly detection ! %s @ %+v\n",
+				event.ProcessContext.Comm, event.GetEventType().String())
+			if p.anomalyDetectionRateLimiterProcess.Allow() {
+				p.DispatchCustomEvent(
+					events.NewCustomRule(events.AnomalyDetectionRuleID),
+					events.NewCustomEvent(model.AnomalyDetectionProcessEventType, serializers.NewEventSerializer(event, p.resolvers)),
+				)
+			} else {
+				fmt.Printf("  -> Event rate limited\n")
+			}
 		} else {
 			fmt.Printf("%s Event not found in profile -> generate anomaly detection for %s ??\n",
 				event.GetEventType().String(), event.ProcessContext.Comm)
 		}
-
 	}
 
 	// if a profile is already present for this event, dont even try to add it to a dump
@@ -1262,18 +1301,22 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	p := &Probe{
-		Opts:                 opts,
-		Config:               config,
-		approvers:            make(map[eval.EventType]kfilters.ActiveApprovers),
-		managerOptions:       ebpf.NewDefaultOptions(),
-		ctx:                  ctx,
-		cancelFnc:            cancel,
-		Erpc:                 nerpc,
-		erpcRequest:          &erpc.ERPCRequest{},
-		StatsdClient:         opts.StatsdClient,
-		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),
-		isRuntimeDiscarded:   !opts.DontDiscardRuntime,
-		event:                &model.Event{},
+		Opts:                               opts,
+		Config:                             config,
+		approvers:                          make(map[eval.EventType]kfilters.ActiveApprovers),
+		managerOptions:                     ebpf.NewDefaultOptions(),
+		ctx:                                ctx,
+		cancelFnc:                          cancel,
+		Erpc:                               nerpc,
+		erpcRequest:                        &erpc.ERPCRequest{},
+		StatsdClient:                       opts.StatsdClient,
+		discarderRateLimiter:               rate.NewLimiter(rate.Every(time.Second/5), 100),
+		isRuntimeDiscarded:                 !opts.DontDiscardRuntime,
+		event:                              &model.Event{},
+		anomalyDetectionRateLimiterOpen:    rate.NewLimiter(rate.Limit(config.SecurityProfileAnomalyDetectionRateLimiter), 1),
+		anomalyDetectionRateLimiterProcess: rate.NewLimiter(rate.Limit(config.SecurityProfileAnomalyDetectionRateLimiter), 1),
+		anomalyDetectionRateLimiterBind:    rate.NewLimiter(rate.Limit(config.SecurityProfileAnomalyDetectionRateLimiter), 1),
+		anomalyDetectionRateLimiterDNS:     rate.NewLimiter(rate.Limit(config.SecurityProfileAnomalyDetectionRateLimiter), 1),
 	}
 
 	if err := p.detectKernelVersion(); err != nil {

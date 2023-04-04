@@ -205,6 +205,30 @@ func (m *SecurityProfileManager) GetProfile(selector cgroupModel.WorkloadSelecto
 	return m.profiles[selector]
 }
 
+// FillProfileContextFromContainerID returns the profile of a container ID
+func (m *SecurityProfileManager) FillProfileContextFromContainerID(id string, ctx *model.SecurityProfileContext) *SecurityProfile {
+	m.profilesLock.Lock()
+	defer m.profilesLock.Unlock()
+
+	var output *SecurityProfile
+	for _, profile := range m.profiles {
+		profile.Lock()
+		for _, instance := range profile.Instances {
+			instance.Lock()
+			if instance.ID == id {
+				ctx.Name = profile.Metadata.Name
+				ctx.Version = profile.Version
+				ctx.Tags = profile.Tags
+				ctx.Status = profile.Status.String()
+			}
+			instance.Unlock()
+		}
+		profile.Unlock()
+	}
+
+	return output
+}
+
 // OnCGroupDeletedEvent is used to handle a CGroupDeleted event
 func (m *SecurityProfileManager) OnCGroupDeletedEvent(workload *cgroupModel.CacheEntry) {
 	// lookup the profile

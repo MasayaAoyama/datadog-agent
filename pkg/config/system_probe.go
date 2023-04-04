@@ -305,6 +305,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.cache_size", 10)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.auto_suppression", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.anomaly_detection", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.anomaly_detection_rate_limiter", 5)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.files_best_effort", false)
 }
 

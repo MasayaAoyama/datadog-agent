@@ -18,6 +18,20 @@ CWS logs have the following JSON schema:
 {
     "$id": "https://github.com/DataDog/datadog-agent/pkg/security/serializers/event",
     "$defs": {
+        "AnomalyDetectionSyscallEvent": {
+            "properties": {
+                "syscall": {
+                    "type": "string",
+                    "description": "Name of the syscall that triggered the anomaly detection event"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "syscall"
+            ],
+            "description": "AnomalyDetectionSyscallEventSerializer serializes an anomaly detection for a syscall event"
+        },
         "BPFEvent": {
             "properties": {
                 "cmd": {
@@ -1182,6 +1196,9 @@ CWS logs have the following JSON schema:
         "mount": {
             "$ref": "#/$defs/MountEvent"
         },
+        "anomaly_detection_syscall": {
+            "$ref": "#/$defs/AnomalyDetectionSyscallEvent"
+        },
         "usr": {
             "$ref": "#/$defs/UserContext"
         },
@@ -1223,11 +1240,38 @@ CWS logs have the following JSON schema:
 | `bind` | $ref | Please see [BindEvent](#bindevent) |
 | `exit` | $ref | Please see [ExitEvent](#exitevent) |
 | `mount` | $ref | Please see [MountEvent](#mountevent) |
+| `anomaly_detection_syscall` | $ref | Please see [AnomalyDetectionSyscallEvent](#anomalydetectionsyscallevent) |
 | `usr` | $ref | Please see [UserContext](#usercontext) |
 | `process` | $ref | Please see [ProcessContext](#processcontext) |
 | `dd` | $ref | Please see [DDContext](#ddcontext) |
 | `container` | $ref | Please see [ContainerContext](#containercontext) |
 | `date` | string |  |
+
+## `AnomalyDetectionSyscallEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "syscall": {
+            "type": "string",
+            "description": "Name of the syscall that triggered the anomaly detection event"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "syscall"
+    ],
+    "description": "AnomalyDetectionSyscallEventSerializer serializes an anomaly detection for a syscall event"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `syscall` | Name of the syscall that triggered the anomaly detection event |
+
 
 ## `BPFEvent`
 
