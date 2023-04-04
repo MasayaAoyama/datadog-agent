@@ -95,35 +95,70 @@ func startExecutionSpan(executionContext *ExecutionStartInfo, inferredSpan *infe
 // endExecutionSpan builds the function execution span and sends it to the intake.
 // It should be called at the end of the invocation.
 func endExecutionSpan(executionContext *ExecutionStartInfo, triggerTags map[string]string, triggerMetrics map[string]float64, processTrace func(p *api.Payload), endDetails *InvocationEndDetails) {
-	duration := endDetails.EndTime.UnixNano() - executionContext.startTime.UnixNano()
+	EndExecutionSpan(
+		&EndExecutionSpanDetails{
+			TraceID:          executionContext.TraceID,
+			SpanID:           executionContext.SpanID,
+			ParentID:         executionContext.parentID,
+			RequestID:        endDetails.RequestID,
+			StartTime:        executionContext.startTime,
+			EndTime:          endDetails.EndTime,
+			SamplingPriority: executionContext.SamplingPriority,
+			TriggerTags:      triggerTags,
+			TriggerMetrics:   triggerMetrics,
+			RequestPayload:   executionContext.requestPayload,
+			ResponsePayload:  endDetails.ResponseRawPayload,
+			IsError:          endDetails.IsError,
+			ProcessTrace:     processTrace,
+		})
+}
+
+type EndExecutionSpanDetails struct {
+	TraceID          uint64
+	SpanID           uint64
+	ParentID         uint64
+	RequestID        string
+	StartTime        time.Time
+	EndTime          time.Time
+	SamplingPriority sampler.SamplingPriority
+	TriggerTags      map[string]string
+	TriggerMetrics   map[string]float64
+	RequestPayload   []byte
+	ResponsePayload  []byte
+	IsError          bool
+	ProcessTrace     func(p *api.Payload)
+}
+
+func EndExecutionSpan(details *EndExecutionSpanDetails) {
+	duration := details.EndTime.UnixNano() - details.StartTime.UnixNano()
 
 	executionSpan := &pb.Span{
 		Service:  "aws.lambda", // will be replaced by the span processor
 		Name:     "aws.lambda",
 		Resource: os.Getenv(functionNameEnvVar),
 		Type:     "serverless",
-		TraceID:  executionContext.TraceID,
-		SpanID:   executionContext.SpanID,
-		ParentID: executionContext.parentID,
-		Start:    executionContext.startTime.UnixNano(),
+		TraceID:  details.TraceID,
+		SpanID:   details.SpanID,
+		ParentID: details.ParentID,
+		Start:    details.StartTime.UnixNano(),
 		Duration: duration,
-		Meta:     triggerTags,
-		Metrics:  triggerMetrics,
+		Meta:     details.TriggerTags,
+		Metrics:  details.TriggerMetrics,
 	}
-	executionSpan.Meta["request_id"] = endDetails.RequestID
+	executionSpan.Meta["request_id"] = details.RequestID
 
 	captureLambdaPayloadEnabled := config.Datadog.GetBool("capture_lambda_payload")
 	if captureLambdaPayloadEnabled {
-		executionSpan.Meta["function.request"] = string(executionContext.requestPayload)
-		executionSpan.Meta["function.response"] = string(endDetails.ResponseRawPayload)
+		executionSpan.Meta["function.request"] = string(details.RequestPayload)
+		executionSpan.Meta["function.response"] = string(details.ResponsePayload)
 	}
 
-	if endDetails.IsError {
+	if details.IsError {
 		executionSpan.Error = 1
 	}
 
 	traceChunk := &pb.TraceChunk{
-		Priority: int32(executionContext.SamplingPriority),
+		Priority: int32(details.SamplingPriority),
 		Spans:    []*pb.Span{executionSpan},
 	}
 
@@ -131,7 +166,7 @@ func endExecutionSpan(executionContext *ExecutionStartInfo, triggerTags map[stri
 		Chunks: []*pb.TraceChunk{traceChunk},
 	}
 
-	processTrace(&api.Payload{
+	details.ProcessTrace(&api.Payload{
 		Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
 		TracerPayload: tracerPayload,
 	})
