@@ -5,6 +5,8 @@
 
 package invocationlifecycle
 
+import "github.com/DataDog/datadog-agent/pkg/trace/api"
+
 // InvocationProcessor is the interface to implement to receive invocation lifecycle hooks
 type InvocationProcessor interface {
 	// OnInvokeStart is the hook triggered when an invocation has started
@@ -13,6 +15,8 @@ type InvocationProcessor interface {
 	OnInvokeEnd(endDetails *InvocationEndDetails)
 	// GetExecutionInfo returns the current execution start information
 	GetExecutionInfo() *ExecutionStartInfo
+	// ProcessTrace TODO
+	ProcessTrace(*api.Payload)
 }
 
 // InvocationSubProcessor is the interface to implement to receive invocation lifecycle hooks along with the

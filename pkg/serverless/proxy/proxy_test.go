@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
+	"github.com/DataDog/datadog-agent/pkg/trace/api"
 )
 
 type testProcessorResponseValid struct{}
@@ -44,6 +45,8 @@ func (tp *testProcessorResponseValid) OnInvokeEnd(endDetails *invocationlifecycl
 	}
 }
 
+func (tp *testProcessorResponseValid) ProcessTrace(*api.Payload) {}
+
 type testProcessorResponseError struct{}
 
 func (tp *testProcessorResponseError) OnInvokeStart(startDetails *invocationlifecycle.InvocationStartDetails) {
@@ -64,6 +67,8 @@ func (tp *testProcessorResponseError) OnInvokeEnd(endDetails *invocationlifecycl
 func (tp *testProcessorResponseError) GetExecutionInfo() *invocationlifecycle.ExecutionStartInfo {
 	return nil
 }
+
+func (tp *testProcessorResponseError) ProcessTrace(*api.Payload) {}
 
 func TestProxyResponseValid(t *testing.T) {
 	// fake the runtime API running on 5001

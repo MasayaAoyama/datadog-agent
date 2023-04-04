@@ -27,7 +27,7 @@ import (
 // LifecycleProcessor is a InvocationProcessor implementation
 type LifecycleProcessor struct {
 	ExtraTags            *serverlessLog.Tags
-	ProcessTrace         func(p *api.Payload)
+	ProcessTraceFunc     func(p *api.Payload)
 	Demux                aggregator.Demultiplexer
 	DetectLambdaLibrary  func() bool
 	InferredSpansEnabled bool
@@ -242,6 +242,10 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 			lp.ExtraTags.Tags, endDetails.EndTime, lp.Demux,
 		)
 	}
+}
+
+func (lp *LifecycleProcessor) ProcessTrace(p *api.Payload) {
+	lp.ProcessTraceFunc(p)
 }
 
 // GetTags returns the tagset of the currently executing lambda function

@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
+	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
@@ -36,6 +37,8 @@ func (m *mockLifecycleProcessor) OnInvokeEnd(endDetails *invocationlifecycle.Inv
 	m.OnInvokeEndCalled = true
 	m.isError = endDetails.IsError
 }
+
+func (m *mockLifecycleProcessor) ProcessTrace(*api.Payload) {}
 
 func TestStartInvocation(t *testing.T) {
 	assert := assert.New(t)
@@ -119,7 +122,7 @@ func TestTraceContext(t *testing.T) {
 	d.InvocationProcessor = &invocationlifecycle.LifecycleProcessor{
 		ExtraTags:           d.ExtraTags,
 		Demux:               nil,
-		ProcessTrace:        nil,
+		ProcessTraceFunc:    nil,
 		DetectLambdaLibrary: func() bool { return false },
 	}
 	client := &http.Client{}

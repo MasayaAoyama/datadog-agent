@@ -40,7 +40,7 @@ func TestLifecycleSubProcessor(t *testing.T) {
 		var tracedPayload *api.Payload
 		testProcessor := &invocationlifecycle.LifecycleProcessor{
 			DetectLambdaLibrary: func() bool { return false },
-			ProcessTrace: func(payload *api.Payload) {
+			ProcessTraceFunc: func(payload *api.Payload) {
 				tracedPayload = payload
 			},
 			SubProcessor: sp,

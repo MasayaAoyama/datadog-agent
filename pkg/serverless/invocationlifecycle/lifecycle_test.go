@@ -35,7 +35,7 @@ func TestGenerateEnhancedErrorMetricOnInvocationEnd(t *testing.T) {
 
 	testProcessor := LifecycleProcessor{
 		ExtraTags:           extraTags,
-		ProcessTrace:        mockProcessTrace,
+		ProcessTraceFunc:    mockProcessTrace,
 		DetectLambdaLibrary: mockDetectLambdaLibrary,
 		Demux:               demux,
 	}
@@ -72,7 +72,7 @@ func TestStartExecutionSpanNoLambdaLibrary(t *testing.T) {
 
 	testProcessor := LifecycleProcessor{
 		ExtraTags:           extraTags,
-		ProcessTrace:        mockProcessTrace,
+		ProcessTraceFunc:    mockProcessTrace,
 		DetectLambdaLibrary: mockDetectLambdaLibrary,
 		Demux:               demux,
 	}
@@ -104,7 +104,7 @@ func TestStartExecutionSpanWithLambdaLibrary(t *testing.T) {
 
 	testProcessor := LifecycleProcessor{
 		ExtraTags:           extraTags,
-		ProcessTrace:        mockProcessTrace,
+		ProcessTraceFunc:    mockProcessTrace,
 		DetectLambdaLibrary: mockDetectLambdaLibrary,
 		Demux:               demux,
 	}
@@ -136,7 +136,7 @@ func TestEndExecutionSpanNoLambdaLibrary(t *testing.T) {
 
 	testProcessor := LifecycleProcessor{
 		ExtraTags:           extraTags,
-		ProcessTrace:        mockProcessTrace,
+		ProcessTraceFunc:    mockProcessTrace,
 		DetectLambdaLibrary: mockDetectLambdaLibrary,
 		Demux:               demux,
 		requestHandler: &RequestHandler{
@@ -183,7 +183,7 @@ func TestEndExecutionSpanWithLambdaLibrary(t *testing.T) {
 
 	testProcessor := LifecycleProcessor{
 		ExtraTags:           extraTags,
-		ProcessTrace:        mockProcessTrace,
+		ProcessTraceFunc:    mockProcessTrace,
 		DetectLambdaLibrary: mockDetectLambdaLibrary,
 		Demux:               demux,
 		requestHandler: &RequestHandler{
@@ -233,7 +233,7 @@ func TestCompleteInferredSpanWithStartTime(t *testing.T) {
 
 	testProcessor := LifecycleProcessor{
 		ExtraTags:            extraTags,
-		ProcessTrace:         mockProcessTrace,
+		ProcessTraceFunc:     mockProcessTrace,
 		DetectLambdaLibrary:  mockDetectLambdaLibrary,
 		Demux:                demux,
 		InferredSpansEnabled: true,
@@ -287,7 +287,7 @@ func TestCompleteInferredSpanWithOutStartTime(t *testing.T) {
 
 	testProcessor := LifecycleProcessor{
 		ExtraTags:            extraTags,
-		ProcessTrace:         mockProcessTrace,
+		ProcessTraceFunc:     mockProcessTrace,
 		DetectLambdaLibrary:  mockDetectLambdaLibrary,
 		Demux:                demux,
 		InferredSpansEnabled: true,
@@ -353,7 +353,7 @@ func TestTriggerTypesLifecycleEventForAPIGateway5xxResponse(t *testing.T) {
 	testProcessor := &LifecycleProcessor{
 		ExtraTags:           extraTags,
 		DetectLambdaLibrary: func() bool { return false },
-		ProcessTrace:        mockProcessTrace,
+		ProcessTraceFunc:    mockProcessTrace,
 		Demux:               demux,
 	}
 	testProcessor.OnInvokeStart(startDetails)
@@ -403,7 +403,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayNonProxy(t *testing.T) {
 
 	testProcessor := &LifecycleProcessor{
 		DetectLambdaLibrary: func() bool { return false },
-		ProcessTrace:        func(*api.Payload) {},
+		ProcessTraceFunc:    func(*api.Payload) {},
 	}
 
 	testProcessor.OnInvokeStart(startDetails)
@@ -443,7 +443,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayNonProxy5xxResponse(t *testing.T
 	testProcessor := &LifecycleProcessor{
 		ExtraTags:           extraTags,
 		DetectLambdaLibrary: func() bool { return false },
-		ProcessTrace:        mockProcessTrace,
+		ProcessTraceFunc:    mockProcessTrace,
 		Demux:               demux,
 	}
 	testProcessor.OnInvokeStart(startDetails)
@@ -493,7 +493,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayWebsocket(t *testing.T) {
 
 	testProcessor := &LifecycleProcessor{
 		DetectLambdaLibrary: func() bool { return false },
-		ProcessTrace:        func(*api.Payload) {},
+		ProcessTraceFunc:    func(*api.Payload) {},
 	}
 
 	testProcessor.OnInvokeStart(startDetails)
@@ -529,7 +529,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayWebsocket5xxResponse(t *testing.
 	testProcessor := &LifecycleProcessor{
 		ExtraTags:           extraTags,
 		DetectLambdaLibrary: func() bool { return false },
-		ProcessTrace:        mockProcessTrace,
+		ProcessTraceFunc:    mockProcessTrace,
 		Demux:               demux,
 	}
 	testProcessor.OnInvokeStart(startDetails)
@@ -575,7 +575,7 @@ func TestTriggerTypesLifecycleEventForALB(t *testing.T) {
 
 	testProcessor := &LifecycleProcessor{
 		DetectLambdaLibrary: func() bool { return false },
-		ProcessTrace:        func(*api.Payload) {},
+		ProcessTraceFunc:    func(*api.Payload) {},
 	}
 
 	testProcessor.OnInvokeStart(startDetails)
@@ -613,7 +613,7 @@ func TestTriggerTypesLifecycleEventForALB5xxResponse(t *testing.T) {
 	testProcessor := &LifecycleProcessor{
 		ExtraTags:           extraTags,
 		DetectLambdaLibrary: func() bool { return false },
-		ProcessTrace:        mockProcessTrace,
+		ProcessTraceFunc:    mockProcessTrace,
 		Demux:               demux,
 	}
 	testProcessor.OnInvokeStart(startDetails)
@@ -661,7 +661,7 @@ func TestTriggerTypesLifecycleEventForCloudwatch(t *testing.T) {
 
 	testProcessor := &LifecycleProcessor{
 		DetectLambdaLibrary: func() bool { return false },
-		ProcessTrace:        func(*api.Payload) {},
+		ProcessTraceFunc:    func(*api.Payload) {},
 	}
 
 	testProcessor.OnInvokeStart(startDetails)
@@ -683,7 +683,7 @@ func TestTriggerTypesLifecycleEventForCloudwatchLogs(t *testing.T) {
 
 	testProcessor := &LifecycleProcessor{
 		DetectLambdaLibrary: func() bool { return false },
-		ProcessTrace:        func(*api.Payload) {},
+		ProcessTraceFunc:    func(*api.Payload) {},
 	}
 
 	testProcessor.OnInvokeStart(startDetails)
@@ -705,7 +705,7 @@ func TestTriggerTypesLifecycleEventForDynamoDB(t *testing.T) {
 
 	testProcessor := &LifecycleProcessor{
 		DetectLambdaLibrary: func() bool { return false },
-		ProcessTrace:        func(*api.Payload) {},
+		ProcessTraceFunc:    func(*api.Payload) {},
 	}
 
 	testProcessor.OnInvokeStart(startDetails)
@@ -727,7 +727,7 @@ func TestTriggerTypesLifecycleEventForKinesis(t *testing.T) {
 
 	testProcessor := &LifecycleProcessor{
 		DetectLambdaLibrary: func() bool { return false },
-		ProcessTrace:        func(*api.Payload) {},
+		ProcessTraceFunc:    func(*api.Payload) {},
 	}
 
 	testProcessor.OnInvokeStart(startDetails)
@@ -749,7 +749,7 @@ func TestTriggerTypesLifecycleEventForS3(t *testing.T) {
 
 	testProcessor := &LifecycleProcessor{
 		DetectLambdaLibrary: func() bool { return false },
-		ProcessTrace:        func(*api.Payload) {},
+		ProcessTraceFunc:    func(*api.Payload) {},
 	}
 
 	testProcessor.OnInvokeStart(startDetails)
@@ -771,7 +771,7 @@ func TestTriggerTypesLifecycleEventForSNS(t *testing.T) {
 
 	testProcessor := &LifecycleProcessor{
 		DetectLambdaLibrary: func() bool { return false },
-		ProcessTrace:        func(*api.Payload) {},
+		ProcessTraceFunc:    func(*api.Payload) {},
 	}
 
 	testProcessor.OnInvokeStart(startDetails)
@@ -793,7 +793,7 @@ func TestTriggerTypesLifecycleEventForSQS(t *testing.T) {
 
 	testProcessor := &LifecycleProcessor{
 		DetectLambdaLibrary: func() bool { return false },
-		ProcessTrace:        func(*api.Payload) {},
+		ProcessTraceFunc:    func(*api.Payload) {},
 	}
 
 	testProcessor.OnInvokeStart(startDetails)
@@ -823,7 +823,7 @@ func TestTriggerTypesLifecycleEventForSNSSQS(t *testing.T) {
 
 	testProcessor := &LifecycleProcessor{
 		DetectLambdaLibrary:  func() bool { return false },
-		ProcessTrace:         func(payload *api.Payload) { tracePayload = payload },
+		ProcessTraceFunc:     func(payload *api.Payload) { tracePayload = payload },
 		InferredSpansEnabled: true,
 		requestHandler: &RequestHandler{
 			executionInfo: &ExecutionStartInfo{
@@ -854,7 +854,7 @@ func TestTriggerTypesLifecycleEventForEventBridge(t *testing.T) {
 
 	testProcessor := &LifecycleProcessor{
 		DetectLambdaLibrary: func() bool { return false },
-		ProcessTrace:        func(*api.Payload) {},
+		ProcessTraceFunc:    func(*api.Payload) {},
 	}
 
 	testProcessor.OnInvokeStart(startDetails)
