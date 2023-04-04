@@ -689,7 +689,7 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 		}
 
 		// we're about to add a root process node, make sure this root node passes the root node sanitizer
-		if !ad.IsValidRootNode(entry) {
+		if !IsValidRootNode(&entry.ProcessContext) {
 			ad.validRootNodeDrop.Inc()
 			return node
 		}
@@ -1181,7 +1181,6 @@ func (pan *ProcessActivityNode) scrubAndReleaseArgsEnvs(resolver *sprocess.Resol
 
 // Matches return true if the process fields used to generate the dump are identical with the provided ProcessCacheEntry
 func (pan *ProcessActivityNode) Matches(entry *model.Process, matchArgs bool) bool {
-
 	if pan.Process.Comm == entry.Comm && pan.Process.FileEvent.PathnameStr == entry.FileEvent.PathnameStr &&
 		pan.Process.Credentials == entry.Credentials {
 
@@ -1538,9 +1537,9 @@ func (ad *ActivityDump) InsertBindEvent(pan *ProcessActivityNode, evt *model.Bin
 }
 
 // IsValidRootNode evaluates if the provided process entry is allowed to become a root node of an Activity Dump
-func (ad *ActivityDump) IsValidRootNode(entry *model.ProcessCacheEntry) bool {
+func IsValidRootNode(entry *model.ProcessContext) bool {
 	// TODO: evaluate if the same issue affects other container runtimes
-	return !strings.HasPrefix(entry.FileEvent.BasenameStr, "runc")
+	return !(strings.HasPrefix(entry.FileEvent.BasenameStr, "runc") || strings.HasPrefix(entry.FileEvent.BasenameStr, "containerd-shim"))
 }
 
 // InsertSyscalls inserts the syscall of the process in the dump

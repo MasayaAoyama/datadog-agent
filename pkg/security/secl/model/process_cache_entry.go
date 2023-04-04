@@ -40,10 +40,30 @@ func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
 }
 
 // GetNextAncestorBinary returns the first ancestor with a different binary
+func (pc *ProcessContext) GetNextAncestorBinary() *ProcessContext {
+	current := pc
+	ancestor := pc.Ancestor
+	for ancestor != nil {
+		if ancestor.Inode == 0 {
+			return nil
+		}
+		if current.Inode != ancestor.Inode {
+			return &ancestor.ProcessContext
+		}
+		current = &ancestor.ProcessContext
+		ancestor = ancestor.Ancestor
+	}
+	return nil
+}
+
+// GetNextAncestorBinary returns the first ancestor with a different binary
 func (pc *ProcessCacheEntry) GetNextAncestorBinary() *ProcessCacheEntry {
 	current := pc
 	ancestor := pc.Ancestor
 	for ancestor != nil {
+		if ancestor.Inode == 0 {
+			return nil
+		}
 		if current.Inode != ancestor.Inode {
 			return ancestor
 		}

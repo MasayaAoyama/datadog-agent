@@ -78,23 +78,40 @@ func NewSecurityProfile(selector cgroupModel.WorkloadSelector) *SecurityProfile 
 	}
 }
 
-func ProcessActivityTreeWalk(processActivityTree []*dump.ProcessActivityNode,
-	walkFunc func(pNode *dump.ProcessActivityNode) bool) []*dump.ProcessActivityNode {
-	var result []*dump.ProcessActivityNode
-	var nodes []*dump.ProcessActivityNode
-	var node *dump.ProcessActivityNode
-	if len(processActivityTree) > 0 {
-		node = processActivityTree[0]
-		nodes = processActivityTree[1:]
+type ProcessActivityNodeAndParent struct {
+	node   *dump.ProcessActivityNode
+	parent *ProcessActivityNodeAndParent
+}
+
+func NewProcessActivityNodeAndParent(node *dump.ProcessActivityNode, parent *ProcessActivityNodeAndParent) *ProcessActivityNodeAndParent {
+	return &ProcessActivityNodeAndParent{
+		node:   node,
+		parent: parent,
 	}
+}
+
+func ProcessActivityTreeWalk(processActivityTree []*dump.ProcessActivityNode,
+	walkFunc func(pNode *ProcessActivityNodeAndParent) bool) []*dump.ProcessActivityNode {
+	var result []*dump.ProcessActivityNode
+	if len(processActivityTree) <= 0 {
+		return result
+	}
+
+	var nodes []*ProcessActivityNodeAndParent
+	var node *ProcessActivityNodeAndParent
+	for _, n := range processActivityTree {
+		nodes = append(nodes, NewProcessActivityNodeAndParent(n, nil))
+	}
+	node = nodes[0]
+	nodes = nodes[1:]
 
 	for node != nil {
 		if walkFunc(node) {
-			result = append(result, node)
+			result = append(result, node.node)
 		}
 
-		for _, child := range node.Children {
-			nodes = append(nodes, child)
+		for _, child := range node.node.Children {
+			nodes = append(nodes, NewProcessActivityNodeAndParent(child, node))
 		}
 		if len(nodes) > 0 {
 			node = nodes[0]
@@ -111,12 +128,26 @@ func (p *SecurityProfile) findProfileProcessNodes(pc *model.ProcessContext) []*d
 		return []*dump.ProcessActivityNode{}
 	}
 
-	return ProcessActivityTreeWalk(p.ProcessActivityTree, func(pNode *dump.ProcessActivityNode) bool {
-		// TODO: also check ancestors lineage
-		if pNode.Matches(&pc.Process, false) {
+	var parent *model.ProcessContext
+	if pc.Ancestor == nil {
+		parent = nil
+	} else {
+		parent = pc.GetNextAncestorBinary()
+	}
+
+	return ProcessActivityTreeWalk(p.ProcessActivityTree, func(node *ProcessActivityNodeAndParent) bool {
+		// check process
+		if !node.node.Matches(&pc.Process, false) {
+			return false
+		}
+		// check parent
+		if node.parent == nil && parent == nil {
 			return true
 		}
-		return false
+		if node.parent == nil || parent == nil {
+			return false
+		}
+		return node.parent.node.Matches(&parent.Process, false)
 	})
 }
 
@@ -130,8 +161,8 @@ func findFileInNode(node *dump.ProcessActivityNode, file *model.FileEvent) bool 
 		if nextParentIndex == 0 {
 			if child != nil && child.Name == file.BasenameStr {
 				// TODO: redo match mode/flags, once stored values are working as expected
-				// return uint32(file.Flags) == currentFan.Open.Flags&uint32(file.Flags) &&
-				// 	uint32(file.Mode) == currentFan.Open.Mode&uint32(file.Mode)
+				// return uint32(file.Flags) == child.Open.Flags&uint32(file.Flags) &&
+				// 	uint32(file.Mode) == child.Open.Mode&uint32(file.Mode)
 				return true
 			} else {
 				return false
