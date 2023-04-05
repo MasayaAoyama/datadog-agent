@@ -313,11 +313,16 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 		count int
 	}
 	tests := []struct {
-		name         string
-		metrics      []checkconfig.MetricsConfig
-		values       *valuestore.ResultValueStore
-		tags         []string
-		expectedLogs []logCount
+		name               string
+		metrics            []checkconfig.MetricsConfig
+		values             *valuestore.ResultValueStore
+		tags               []string
+		expectedMethod     string
+		expectedMetricName string
+		expectedValue      float64
+		expectedTags       []string
+		expectedSubMetrics int
+		expectedLogs       []logCount
 	}{
 		{
 			name: "report scalar error",
@@ -328,6 +333,18 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 			expectedLogs: []logCount{
 				{"[DEBUG] reportScalarMetrics: report scalar: error getting scalar value: value for Scalar OID `1.2.3.4.5` not found in results", 1},
 			},
+		},
+		{
+			name: "report constant metric",
+			metrics: []checkconfig.MetricsConfig{
+				{Symbols: []checkconfig.SymbolConfig{{Name: "constant.metric", SendAsConstant: true}}},
+			},
+			values:             &valuestore.ResultValueStore{},
+			expectedMethod:     "Gauge",
+			expectedMetricName: "snmp.constant.metric",
+			expectedValue:      float64(1),
+			expectedTags:       []string{},
+			expectedSubMetrics: 1,
 		},
 	}
 	for _, tt := range tests {
@@ -345,6 +362,10 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 			metricSender := MetricSender{sender: mockSender}
 
 			metricSender.ReportMetrics(tt.metrics, tt.values, tt.tags)
+
+			if tt.expectedMethod != "" {
+				mockSender.AssertCalled(t, tt.expectedMethod, tt.expectedMetricName, tt.expectedValue, "", tt.expectedTags)
+			}
 
 			w.Flush()
 			logs := b.String()

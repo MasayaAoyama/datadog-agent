@@ -56,6 +56,8 @@ metrics:
     OID: 1.3.6.1.2.1.2.2
     name: ifTable
   symbols:
+  - name: interfaces
+    send_as_constant: true
   - OID: 1.3.6.1.2.1.2.2.1.14
     name: ifInErrors
   - OID: 1.3.6.1.2.1.2.2.1.20
@@ -161,6 +163,7 @@ bulk_max_repetitions: 20
 			Symbols: []SymbolConfig{
 				// ifInErrors defined in instance config with a different set of metric tags from the one defined
 				// in the imported profile
+				{Name: "interfaces", SendAsConstant: true},
 				{OID: "1.3.6.1.2.1.2.2.1.14", Name: "ifInErrors"},
 				{OID: "1.3.6.1.2.1.2.2.1.20", Name: "ifOutErrors", ScaleFactor: 3},
 			},

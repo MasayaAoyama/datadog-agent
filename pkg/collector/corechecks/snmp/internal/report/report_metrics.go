@@ -122,6 +122,22 @@ func (ms *MetricSender) reportColumnMetrics(metricConfig checkconfig.MetricsConf
 	rowTagsCache := make(map[string][]string)
 	samples := map[string]map[string]MetricSample{}
 	for _, symbol := range metricConfig.Symbols {
+		if symbol.SendAsConstant {
+			metricTags := common.CopyStrings(tags)
+			metricTags = append(tags, metricConfig.StaticTags...)
+			metricTags = append(tags, getTagsFromMetricTagConfigList(metricConfig.MetricTags, "", values)...)
+
+			sample := MetricSample{
+				value: valuestore.ResultValue{
+					Value: float64(common.ConstantMetricValue),
+				},
+				tags:   metricTags,
+				symbol: symbol,
+			}
+			ms.sendMetric(sample)
+			continue
+		}
+
 		metricValues, err := getColumnValueFromSymbol(values, symbol)
 		if err != nil {
 			continue

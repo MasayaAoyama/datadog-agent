@@ -74,3 +74,5 @@ const (
 	InterfaceStatus_Warning InterfaceStatus = "warning"
 	InterfaceStatus_Off     InterfaceStatus = "off"
 )
+
+const ConstantMetricValue = 1
