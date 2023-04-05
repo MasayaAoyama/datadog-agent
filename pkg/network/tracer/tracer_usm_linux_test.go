@@ -800,7 +800,7 @@ func TestJavaInjection(t *testing.T) {
 				cfg.JavaDir = legacyJavaDir
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", "-cp /v/target/dependency/*:/v/target/NettyClient-1.jar com.datadoghq.NettyClient", regexp.MustCompile("END OF CONTENT"))
+				javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", "-cp /v/target/dependency/*:/v/target/NettyClient-1.jar -Dio.netty.native.deleteLibAfterLoading=false com.datadoghq.NettyClient", regexp.MustCompile("END OF CONTENT"))
 			},
 			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
 				// Iterate through active connections until we find connection created above
