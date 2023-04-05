@@ -124,8 +124,8 @@ func (ms *MetricSender) reportColumnMetrics(metricConfig checkconfig.MetricsConf
 	for _, symbol := range metricConfig.Symbols {
 		if symbol.SendAsConstant {
 			metricTags := common.CopyStrings(tags)
-			metricTags = append(tags, metricConfig.StaticTags...)
-			metricTags = append(tags, getTagsFromMetricTagConfigList(metricConfig.MetricTags, "", values)...)
+			metricTags = append(metricTags, metricConfig.StaticTags...)
+			metricTags = append(metricTags, getTagsFromMetricTagConfigList(metricConfig.MetricTags, "", values)...)
 
 			sample := MetricSample{
 				value: valuestore.ResultValue{
