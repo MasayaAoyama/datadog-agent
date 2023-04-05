@@ -41,6 +41,11 @@ type SecurityProfileManager struct {
 	pendingCache     *simplelru.LRU[cgroupModel.WorkloadSelector, *SecurityProfile]
 	cacheHit         *atomic.Uint64
 	cacheMiss        *atomic.Uint64
+
+	eventFilteringLookUp    *atomic.Uint64
+	eventFilteringNoProfile map[model.EventType]*atomic.Uint64
+	eventFilteringAbsent    map[model.EventType]*atomic.Uint64
+	eventFilteringPresent   map[model.EventType]*atomic.Uint64
 }
 
 // NewSecurityProfileManager returns a new instance of SecurityProfileManager
@@ -62,14 +67,23 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 	}
 
 	m := &SecurityProfileManager{
-		config:         config,
-		statsdClient:   statsdClient,
-		providers:      providers,
-		cgroupResolver: cgroupResolver,
-		profiles:       make(map[cgroupModel.WorkloadSelector]*SecurityProfile),
-		pendingCache:   profileCache,
-		cacheHit:       atomic.NewUint64(0),
-		cacheMiss:      atomic.NewUint64(0),
+		config:                  config,
+		statsdClient:            statsdClient,
+		providers:               providers,
+		cgroupResolver:          cgroupResolver,
+		profiles:                make(map[cgroupModel.WorkloadSelector]*SecurityProfile),
+		pendingCache:            profileCache,
+		cacheHit:                atomic.NewUint64(0),
+		cacheMiss:               atomic.NewUint64(0),
+		eventFilteringLookUp:    atomic.NewUint64(0),
+		eventFilteringNoProfile: make(map[model.EventType]*atomic.Uint64),
+		eventFilteringAbsent:    make(map[model.EventType]*atomic.Uint64),
+		eventFilteringPresent:   make(map[model.EventType]*atomic.Uint64),
+	}
+	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
+		m.eventFilteringNoProfile[i] = atomic.NewUint64(0)
+		m.eventFilteringAbsent[i] = atomic.NewUint64(0)
+		m.eventFilteringPresent[i] = atomic.NewUint64(0)
 	}
 
 	// register the manager to the provider(s)
@@ -359,6 +373,39 @@ func (m *SecurityProfileManager) SendStats() error {
 		}
 	}
 
+	if val := int64(m.eventFilteringLookUp.Swap(0)); val > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileEventFilteringLookup, val, []string{}, 1.0); err != nil {
+			return fmt.Errorf("couldn't send MetricSecurityProfileEventFilteringLookup: %w", err)
+		}
+	}
+
+	for evtType, count := range m.eventFilteringNoProfile {
+		tags := []string{fmt.Sprintf("event_type:%s", evtType)}
+		if value := count.Swap(0); value > 0 {
+			if err := m.statsdClient.Count(metrics.MetricSecurityProfileEventFilteringNoProfile, int64(value), tags, 1.0); err != nil {
+				return fmt.Errorf("couldn't send MetricSecurityProfileEventFilteringNoProfile metric: %w", err)
+			}
+		}
+	}
+
+	for evtType, count := range m.eventFilteringAbsent {
+		tags := []string{fmt.Sprintf("event_type:%s", evtType)}
+		if value := count.Swap(0); value > 0 {
+			if err := m.statsdClient.Count(metrics.MetricSecurityProfileEventFilteringAbsent, int64(value), tags, 1.0); err != nil {
+				return fmt.Errorf("couldn't send MetricSecurityProfileEventFilteringAbsent metric: %w", err)
+			}
+		}
+	}
+
+	for evtType, count := range m.eventFilteringPresent {
+		tags := []string{fmt.Sprintf("event_type:%s", evtType)}
+		if value := count.Swap(0); value > 0 {
+			if err := m.statsdClient.Count(metrics.MetricSecurityProfileEventFilteringPresent, int64(value), tags, 1.0); err != nil {
+				return fmt.Errorf("couldn't send MetricSecurityProfileEventFilteringPresent metric: %w", err)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -399,11 +446,14 @@ func (m *SecurityProfileManager) LookupEventOnProfiles(event *model.Event) {
 		return
 	}
 
+	m.eventFilteringLookUp.Inc()
+
 	// if time.Now()-event.ContainerContext.CreatedAt < time.Second*30 {
 	// 	// TODO: put the event in a cache to be pop back after x sec to have a chance to
 	// 	// retrieve a profile for that workload
 	// }
 
+	// TODO: move this part in newworkloadselector
 	image := utils.GetTagValue("image_name", event.ContainerContext.Tags)
 	tags := utils.GetTagValue("image_tag", event.ContainerContext.Tags)
 	if image == "" {
@@ -416,12 +466,14 @@ func (m *SecurityProfileManager) LookupEventOnProfiles(event *model.Event) {
 	selector := cgroupModel.NewWorkloadSelector(image, tags)
 	profile := m.GetProfile(selector)
 	if profile == nil || profile.Status == UnknownStatus {
+		m.eventFilteringNoProfile[event.GetEventType()].Inc()
 		return
 	}
 	event.ProfileState = model.MatchedAndAbsent
 
 	processNodes := profile.findProfileProcessNodes(event.ProcessContext)
 	if len(processNodes) == 0 {
+		m.eventFilteringAbsent[event.GetEventType()].Inc()
 		return
 	}
 
@@ -452,6 +504,12 @@ func (m *SecurityProfileManager) LookupEventOnProfiles(event *model.Event) {
 			event.ProfileState = model.MatchedAndPresent
 			fmt.Printf("BIND Event found in profile -> discarded\n")
 		}
+	}
+
+	if event.ProfileState == model.MatchedAndPresent {
+		m.eventFilteringPresent[event.GetEventType()].Inc()
+	} else {
+		m.eventFilteringAbsent[event.GetEventType()].Inc()
 	}
 	return
 }

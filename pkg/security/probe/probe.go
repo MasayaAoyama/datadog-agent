@@ -20,6 +20,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
+	"go.uber.org/atomic"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 	"golang.org/x/time/rate"
@@ -36,6 +37,7 @@ import (
 	kernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
@@ -101,6 +103,8 @@ type Probe struct {
 	anomalyDetectionRateLimiterOpen    *rate.Limiter
 	anomalyDetectionRateLimiterBind    *rate.Limiter
 	anomalyDetectionRateLimiterDNS     *rate.Limiter
+	anomalyDetectionSent               map[model.EventType]*atomic.Uint64
+	anomalyDetectionDropped            map[model.EventType]*atomic.Uint64
 
 	// Ring
 	eventStream EventStream
@@ -316,6 +320,66 @@ func (p *Probe) AddEventHandler(eventType model.EventType, handler EventHandler)
 	p.handlers[eventType] = append(p.handlers[eventType], handler)
 }
 
+func (p *Probe) SendAnomalyDetection(event *model.Event) {
+	var customEventType model.EventType
+
+	switch event.GetEventType() {
+	case model.FileOpenEventType:
+		if p.Config.SecurityProfileFilesBestEffort {
+			fmt.Printf("FILE Event not found in profile -> generate anomaly detection ! %s @ %+v for %s\n",
+				event.ProcessContext.Comm, event.GetEventType().String(), event.Open.File.PathnameStr)
+			if p.anomalyDetectionRateLimiterOpen.Allow() {
+				customEventType = model.AnomalyDetectionOpenEventType
+			} else {
+				fmt.Printf("  -> Event rate limited\n")
+				p.anomalyDetectionDropped[model.FileOpenEventType].Inc()
+				return
+			}
+		}
+	case model.DNSEventType:
+		fmt.Printf("DNS Event not found in profile -> generate anomaly detection ! %s @ %+v for %s (%d)\n",
+			event.ProcessContext.Comm, event.GetEventType().String(), event.DNS.Name, event.DNS.Type)
+		if p.anomalyDetectionRateLimiterDNS.Allow() {
+			customEventType = model.AnomalyDetectionDNSEventType
+		} else {
+			fmt.Printf("  -> Event rate limited\n")
+			p.anomalyDetectionDropped[model.DNSEventType].Inc()
+			return
+		}
+	case model.BindEventType:
+		fmt.Printf("BIND Event not found in profile -> generate anomaly detection ! %s @ %+v for %s\n",
+			event.ProcessContext.Comm, event.GetEventType().String(), event.DNS.Name)
+		if p.anomalyDetectionRateLimiterBind.Allow() {
+			customEventType = model.AnomalyDetectionBindEventType
+		} else {
+			fmt.Printf("  -> Event rate limited\n")
+			p.anomalyDetectionDropped[model.BindEventType].Inc()
+			return
+		}
+	case model.ExecEventType:
+		fmt.Printf("EXEC Event not found in profile -> generate anomaly detection ! %s @ %+v\n",
+			event.ProcessContext.Comm, event.GetEventType().String())
+		if p.anomalyDetectionRateLimiterProcess.Allow() {
+			customEventType = model.AnomalyDetectionProcessEventType
+		} else {
+			fmt.Printf("  -> Event rate limited\n")
+			p.anomalyDetectionDropped[model.ExecEventType].Inc()
+			return
+		}
+	default: // at least fork, exit
+		fmt.Printf("%s Event not found in profile -> generate anomaly detection for %s ??\n",
+			event.GetEventType().String(), event.ProcessContext.Comm)
+		return
+	}
+
+	p.monitor.securityProfileManager.FillProfileContextFromContainerID(event.ProcessContext.ContainerID, &event.SecurityProfileContext)
+	p.DispatchCustomEvent(
+		events.NewCustomRule(events.AnomalyDetectionRuleID),
+		events.NewCustomEvent(customEventType, serializers.NewEventSerializer(event, p.resolvers)),
+	)
+	p.anomalyDetectionSent[model.ExecEventType].Inc()
+}
+
 // DispatchEvent sends an event to the probe event handler
 func (p *Probe) DispatchEvent(event *model.Event) {
 	traceEvent("Dispatching event %s", func() ([]byte, model.EventType, error) {
@@ -343,63 +407,12 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 		handler.HandleEvent(event)
 	}
 
-	// TODO: split this func
 	if p.Config.SecurityProfileAnomalyDetection && event.ProfileState == model.MatchedAndAbsent && event.GetEventType() != model.SyscallsEventType {
-		p.monitor.securityProfileManager.FillProfileContextFromContainerID(event.ProcessContext.ContainerID, &event.SecurityProfileContext)
-		if event.GetEventType() == model.FileOpenEventType {
-			if p.Config.SecurityProfileFilesBestEffort {
-				fmt.Printf("FILE Event not found in profile -> generate anomaly detection ! %s @ %+v for %s\n",
-					event.ProcessContext.Comm, event.GetEventType().String(), event.Open.File.PathnameStr)
-				if p.anomalyDetectionRateLimiterOpen.Allow() {
-					p.DispatchCustomEvent(
-						events.NewCustomRule(events.AnomalyDetectionRuleID),
-						events.NewCustomEvent(model.AnomalyDetectionOpenEventType, serializers.NewEventSerializer(event, p.resolvers)),
-					)
-				} else {
-					fmt.Printf("  -> Event rate limited\n")
-				}
-			}
-		} else if event.GetEventType() == model.DNSEventType {
-			fmt.Printf("DNS Event not found in profile -> generate anomaly detection ! %s @ %+v for %s (%d)\n",
-				event.ProcessContext.Comm, event.GetEventType().String(), event.DNS.Name, event.DNS.Type)
-			if p.anomalyDetectionRateLimiterDNS.Allow() {
-				p.DispatchCustomEvent(
-					events.NewCustomRule(events.AnomalyDetectionRuleID),
-					events.NewCustomEvent(model.AnomalyDetectionDNSEventType, serializers.NewEventSerializer(event, p.resolvers)),
-				)
-			} else {
-				fmt.Printf("  -> Event rate limited\n")
-			}
-		} else if event.GetEventType() == model.BindEventType {
-			fmt.Printf("BIND Event not found in profile -> generate anomaly detection ! %s @ %+v for %s\n",
-				event.ProcessContext.Comm, event.GetEventType().String(), event.DNS.Name)
-			if p.anomalyDetectionRateLimiterBind.Allow() {
-				p.DispatchCustomEvent(
-					events.NewCustomRule(events.AnomalyDetectionRuleID),
-					events.NewCustomEvent(model.AnomalyDetectionBindEventType, serializers.NewEventSerializer(event, p.resolvers)),
-				)
-			} else {
-				fmt.Printf("  -> Event rate limited\n")
-			}
-		} else if event.GetEventType() == model.ExecEventType {
-			fmt.Printf("EXEC Event not found in profile -> generate anomaly detection ! %s @ %+v\n",
-				event.ProcessContext.Comm, event.GetEventType().String())
-			if p.anomalyDetectionRateLimiterProcess.Allow() {
-				p.DispatchCustomEvent(
-					events.NewCustomRule(events.AnomalyDetectionRuleID),
-					events.NewCustomEvent(model.AnomalyDetectionProcessEventType, serializers.NewEventSerializer(event, p.resolvers)),
-				)
-			} else {
-				fmt.Printf("  -> Event rate limited\n")
-			}
-		} else {
-			fmt.Printf("%s Event not found in profile -> generate anomaly detection for %s ??\n",
-				event.GetEventType().String(), event.ProcessContext.Comm)
-		}
+		p.SendAnomalyDetection(event)
 	}
 
 	// if a profile is already present for this event, dont even try to add it to a dump
-	if event.ProfileState == model.NoProfileMatched {
+	if event.ProfileState == model.NoProfileMatched { // TODO: remove
 		// Process after evaluation because some monitors need the DentryResolver to have been called first.
 		p.monitor.ProcessEvent(event)
 	}
@@ -443,6 +456,24 @@ func traceEvent(fmt string, marshaller func() ([]byte, model.EventType, error)) 
 // SendStats sends statistics about the probe to Datadog
 func (p *Probe) SendStats() error {
 	p.resolvers.TCResolver.SendTCProgramsStats(p.StatsdClient)
+
+	for evtType, count := range p.anomalyDetectionSent {
+		tags := []string{fmt.Sprintf("event_type:%s", evtType)}
+		if value := count.Swap(0); value > 0 {
+			if err := p.StatsdClient.Count(metrics.MetricSecurityProfileAnomalyDetectionSent, int64(value), tags, 1.0); err != nil {
+				return fmt.Errorf("couldn't send MetricSecurityProfileAnomalyDetectionSent metric: %w", err)
+			}
+		}
+	}
+
+	for evtType, count := range p.anomalyDetectionDropped {
+		tags := []string{fmt.Sprintf("event_type:%s", evtType)}
+		if value := count.Swap(0); value > 0 {
+			if err := p.StatsdClient.Count(metrics.MetricSecurityProfileAnomalyDetectionDropped, int64(value), tags, 1.0); err != nil {
+				return fmt.Errorf("couldn't send MetricSecurityProfileAnomalyDetectionDropped metric: %w", err)
+			}
+		}
+	}
 
 	return p.monitor.SendStats()
 }
@@ -1317,6 +1348,12 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		anomalyDetectionRateLimiterProcess: rate.NewLimiter(rate.Limit(config.SecurityProfileAnomalyDetectionRateLimiter), 1),
 		anomalyDetectionRateLimiterBind:    rate.NewLimiter(rate.Limit(config.SecurityProfileAnomalyDetectionRateLimiter), 1),
 		anomalyDetectionRateLimiterDNS:     rate.NewLimiter(rate.Limit(config.SecurityProfileAnomalyDetectionRateLimiter), 1),
+		anomalyDetectionSent:               make(map[model.EventType]*atomic.Uint64),
+		anomalyDetectionDropped:            make(map[model.EventType]*atomic.Uint64),
+	}
+	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
+		p.anomalyDetectionSent[i] = atomic.NewUint64(0)
+		p.anomalyDetectionDropped[i] = atomic.NewUint64(0)
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
