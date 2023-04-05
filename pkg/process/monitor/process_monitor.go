@@ -201,6 +201,15 @@ func (pm *ProcessMonitor) evalEXITCallback(c *ProcessCallback, pid uint32) {
 	}
 }
 
+func (pm *ProcessMonitor) closeDone() {
+	pm.m.Lock()
+	if pm.done != nil {
+		close(pm.done)
+		pm.done = nil
+	}
+	pm.m.Unlock()
+}
+
 // Initialize will scan all running processes and execute matching callbacks
 // Once it's done all new events from netlink socket will be processed by the main async loop
 func (pm *ProcessMonitor) Initialize() error {
@@ -287,7 +296,7 @@ func (pm *ProcessMonitor) Initialize() error {
 				}
 				log.Errorf("process monitor error: %s", err)
 				// closing netlink subscription
-				close(pm.done)
+				pm.closeDone()
 				return
 
 			case <-logTicker.C:
@@ -371,9 +380,7 @@ func (pm *ProcessMonitor) Stop() {
 	if pm.refcount.Dec() > 0 {
 		return
 	}
-	if pm.done != nil {
-		close(pm.done)
-	}
+	pm.closeDone()
 	pm.wg.Wait()
 }
 
